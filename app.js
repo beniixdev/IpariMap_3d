@@ -26,7 +26,8 @@ const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').rep
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const angDiff = (a, b) => ((a - b + 540) % 360) - 180;
 const lerp = (a, b, t) => a + (b - a) * t;
-const DY = (o) => (o.dy || 0) * FLOOR_H * 1.6; // negyed emeletnyi szintkülönbség (L-szárny), a térképen kicsit eltúlozva, hogy látsszon
+// L-szárny szintkülönbsége; a negyed emeletnyit a térképen kicsit eltúlozzuk, hogy látsszon
+const DY = (o) => (o.dy || 0) * FLOOR_H * (Math.abs(o.dy || 0) < 0.5 ? 1.6 : 1);
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 const S = {
@@ -262,7 +263,7 @@ for (const lv of LEVELS) {
   const c = D.corridors.find((x) => x.level === lv && x.dy);
   if (!c) continue;
   const el = document.createElement('div'); el.className = 'tag split';
-  el.textContent = c.dy > 0 ? '▲ L-szárny: negyed szinttel feljebb' : '▼ L-szárny: negyed szinttel lejjebb';
+  el.textContent = lv === 1 ? '▲ L-szárny alsó szintje: fél szinttel a 2. emelet alatt' : '▲ L-szárny felső szintje: negyed szinttel a 2. emelet fölött';
   const o = new CSS2DObject(el);
   const xs = c.poly.map((p) => p[0]), zs = c.poly.map((p) => p[1]);
   o.position.set(Math.min(...xs) + 1.5, DY(c) + WALL_H + 1.2, (Math.min(...zs) + Math.max(...zs)) / 2);
@@ -470,7 +471,8 @@ function buildSteps(r) {
     if (g.len < 1.5 && groups.length > 1) continue;
     const d = dirOf(g.first[0], g.first[1]);
     const verb = lastDir ? turnWord(lastDir, d) : steps.length > 1 ? 'Folytasd' : 'Indulj el';
-    const half = g.ddy > 0 ? ' · negyed emeletnyi lépcső fel' : g.ddy < 0 ? ' · negyed emeletnyi lépcső le' : '';
+    const amt = Math.abs(g.ddy) >= 0.5 ? 'fél' : 'negyed';
+    const half = g.ddy > 0 ? ` · ${amt} emeletnyi lépcső fel` : g.ddy < 0 ? ` · ${amt} emeletnyi lépcső le` : '';
     steps.push({ text: `${verb}: ${g.name}`, small: `${levelName(D.nodes[g.start].level)} · kb. ${Math.max(1, Math.round(g.len))} m${g.restricted ? ' · tanári folyosó' : ''}${half}`, node: g.start });
     lastDir = dirOf(g.last[0], g.last[1]);
   }
