@@ -259,3 +259,10 @@ EXITS = [
  (1,(1063,330),'L-szárny bejárat'),
  (1,(1930,690),'Udvari / parkolói bejárat (I-szárny)'),
 ]
+
+# Szintkülönbség: az L-szárny alsó szintje (L0xx) negyed emelettel lejjebb, a felső (L1xx) negyed emelettel feljebb van, mint a mellette lévő F-szárnybeli szint.
+# (level, include rect, exclude rects) plan pixels; dy in floors
+OFFSETS = [
+ (1, (1060, 180, 1935, 868), [(1755, 485, 1935, 868)], -0.25),
+ (2, (800, 75, 1630, 785), [(1390, 435, 1600, 725)], 0.25),
+]

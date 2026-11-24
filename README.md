@@ -1,6 +1,8 @@
 # Ipari MAP – 3D épületnavigáció
 
-Böngészőben futó, forgatható 3D modell az iskola három alaprajzából (földszint, 1. és 2. emelet, plusz az I‑szárny tetőtere), útvonaltervezéssel és fotós „utcakép” móddal.
+Készítette: **Lakatos Bence, 12/C**
+
+Böngészőben futó, forgatható 3D modell az iskola három alaprajzából (földszint, 1. és 2. emelet, plusz az I‑szárny tetőtere), útvonaltervezéssel és körbenézhető folyosófotókkal.
 
 ## Indítás
 
@@ -12,7 +14,7 @@ python3 -m http.server 8000
 # majd böngészőben: http://localhost:8000/
 ```
 
-GitHub Pages-en (Settings → Pages → *Deploy from a branch* → `main` / root) közvetlenül működik. A fotók a `photos/` mappában vannak (1600 px-es, webre optimalizált másolatok a [BalintQ/IpariTerkep](https://github.com/BalintQ/IpariTerkep) repó folyosófotóiból); a helyük az `index.html` `data-photo-base` attribútumában átállítható.
+GitHub Pages-en (Settings → Pages → *Deploy from a branch* → `main` / root) közvetlenül működik. A fotók a `photos/` mappában vannak (1600 px-es WebP másolatok a [BalintQ/IpariTerkep](https://github.com/BalintQ/IpariTerkep) repó folyosófotóiból); a helyük az `index.html` `data-photo-base` attribútumában átállítható.
 
 ## Mit tud
 
@@ -23,8 +25,9 @@ GitHub Pages-en (Settings → Pages → *Deploy from a branch* → `main` / root
   - Ha a cél (vagy az indulás) a tanári folyosón van – titkárság, igazgató, igazgatóhelyettesek, nagy tanári –, az **ügyintézés** miatt beléphet, a panel ezt jelzi.
   - A csak tanároknak szóló helyiségekhez (tanári WC-k, tanári pihenő, tanári konyha) diák módban nem tervez útvonalat.
   - *Tanár* módban minden folyosó használható.
-- **Utcakép mód**: a kék pontok a repóban lévő folyosófotók. Kattintásra a kamera „beugrik” a modellbe a fotó helyére és irányába, majd megnyílik a fotó; a padlón lévő nyilakkal (vagy ↑ ↓ ← → billentyűkkel) lehet a szomszédos fotókra lépni, húzással körbenézni, görgővel nagyítani. A bal alsó minitérkép mutatja a helyet és a nézési irányt.
-- **Bejárás fotókkal**: a megtervezett útvonal mentén, menetirányba néző fotókon lehet végiglépkedni.
+- **Legközelebbi mosdó / kijárat** egy gombnyomással, az indulási ponttól számítva.
+- **Fotók**: a kék pontok a folyosókon készült fotók. Kattintásra a kamera „beugrik” a modellbe a fotó helyére, majd megnyílik a kép, amelyen húzással körbe lehet nézni és nagyítani lehet. A sarokban kis térkép mutatja, hol és melyik irányba készült. Útvonaltervezés után a „Fotó a célnál” gomb megmutatja a cél környékét.
+- **Súgó**: első megnyitáskor (és a fejléc „?” gombjával) rövid útmutató jelenik meg, hogy az iskolát nem ismerők is eligazodjanak.
 
 ## Adatok szerkesztése
 

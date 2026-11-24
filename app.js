@@ -26,6 +26,7 @@ const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').rep
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const angDiff = (a, b) => ((a - b + 540) % 360) - 180;
 const lerp = (a, b, t) => a + (b - a) * t;
+const DY = (o) => (o.dy || 0) * FLOOR_H; // negyed emeletnyi szintkülönbség (L-szárny)
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 const S = {
@@ -170,6 +171,7 @@ for (const lv of LEVELS) {
     const g = new THREE.ExtrudeGeometry(shapeFrom(c.poly), { depth: 0.35, bevelEnabled: false });
     g.rotateX(-Math.PI / 2); g.translate(0, -0.35, 0);
     const m = new THREE.Mesh(g, [c.restricted ? tMat : slabMat, edgeMat]);
+    m.position.y = DY(c);
     m.receiveShadow = true;
     grp.add(m);
   }
@@ -183,23 +185,34 @@ for (const lv of LEVELS) {
     m.receiveShadow = true;
     m.userData = { room: r, base: col.clone() };
     r.mesh = m;
+    m.position.y = DY(r);
     grp.add(m); roomMeshes.push(m); pickables.push(m);
     // label
     const el = document.createElement('div');
     el.className = 'lbl' + (r.area > 120 ? ' big' : '');
-    el.innerHTML = `<b>${esc(r.name)}</b>${r.sub && r.area > 25 ? `<small>${esc(r.sub)}</small>` : ''}`;
+    const wcSub = r.type === 'wc' ? (/női/i.test(r.name + r.sub) ? 'Női WC' : /férfi/i.test(r.name + r.sub) ? 'Férfi WC' : /akadálym/i.test(r.sub) ? 'Akadálymentes WC' : '') : '';
+    const showName = r.type === 'wc' && /WC/.test(r.name) && wcSub ? '' : r.name;
+    const wcSmall = showName ? (wcSub && wcSub !== showName ? wcSub : '') : (r.staff ? 'tanári' : '');
+    el.innerHTML = r.type === 'wc'
+      ? `<b>${esc(showName || wcSub)}</b>${wcSmall ? `<small>${esc(wcSmall)}</small>` : ''}`
+      : `<b>${esc(r.name)}</b>${r.sub && r.area > 25 ? `<small>${esc(r.sub)}</small>` : ''}`;
     const o = new CSS2DObject(el);
-    o.position.set(r.cx, WALL_H + 0.3, r.cz);
+    o.position.set(r.cx, WALL_H + 0.3 + DY(r), r.cz);
     o.userData = { room: r, el };
     grp.add(o); labels.push(o);
   }
   // walls
-  const [wg, lg] = wallGeometry([...roomPolys, ...corrs.map((c) => c.poly)], WALL_H);
   const wallMat = mk(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, side: THREE.DoubleSide, opacity: 0.94 }));
-  const walls = new THREE.Mesh(wg, wallMat);
-  walls.castShadow = true; walls.receiveShadow = true;
-  grp.add(walls);
-  grp.add(new THREE.LineSegments(lg, mk(new THREE.LineBasicMaterial({ color: 0x55514a }))));
+  const lineMat = mk(new THREE.LineBasicMaterial({ color: 0x55514a }));
+  const items = [...D.rooms.filter((r) => r.level === lv), ...corrs];
+  for (const dy of [...new Set(items.map((o) => o.dy || 0))]) {
+    const [wg, lg] = wallGeometry(items.filter((o) => (o.dy || 0) === dy).map((o) => o.poly), WALL_H);
+    const walls = new THREE.Mesh(wg, wallMat);
+    walls.castShadow = true; walls.receiveShadow = true;
+    const lines = new THREE.LineSegments(lg, lineMat);
+    walls.position.y = lines.position.y = dy * FLOOR_H;
+    grp.add(walls, lines);
+  }
   // floor tag
   const tagEl = document.createElement('div'); tagEl.className = 'tag lvl'; tagEl.textContent = levelName(lv);
   const xs = [...roomPolys, ...corrs.map((c) => c.poly)].flat();
@@ -228,7 +241,7 @@ const extraTags = [];
   for (const e of D.exits) {
     const n = D.nodes[e.node];
     const el2 = document.createElement('div'); el2.className = 'tag exit'; el2.textContent = '⇥ ' + e.name;
-    const o2 = new CSS2DObject(el2); o2.position.set(n.x, 0.8, n.z); o2.userData = { level: e.level };
+    const o2 = new CSS2DObject(el2); o2.position.set(n.x, 0.8 + DY(n), n.z); o2.userData = { level: e.level };
     levelGroups[e.level].add(o2); extraTags.push(o2);
   }
 }
@@ -242,7 +255,7 @@ function buildStairs() {
   for (const e of D.edges.filter((x) => x.kind === 'stair')) {
     const a = D.nodes[e.a], b = D.nodes[e.b];
     if (!visibleLevel(a.level) || !visibleLevel(b.level)) continue;
-    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a.x, S.levelY[a.level] + 0.2, a.z), new THREE.Vector3(b.x, S.levelY[b.level] + 0.2, b.z)]);
+    const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(a.x, S.levelY[a.level] + DY(a) + 0.2, a.z), new THREE.Vector3(b.x, S.levelY[b.level] + DY(b) + 0.2, b.z)]);
     const l = new THREE.Line(g, stairMat); l.computeLineDistances(); stairGroup.add(l);
   }
 }
@@ -266,7 +279,7 @@ for (const lv of LEVELS) {
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
   list.forEach((p, i) => {
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -p.heading * Math.PI / 180);
-    m4.compose(new THREE.Vector3(p.x, 0.12, p.z), q, new THREE.Vector3(1, 1, 1));
+    m4.compose(new THREE.Vector3(p.x, 0.12 + DY(p), p.z), q, new THREE.Vector3(1, 1, 1));
     im.setMatrixAt(i, m4);
     im.setColorAt(i, new THREE.Color(0xffffff));
   });
@@ -312,7 +325,7 @@ function updateLevels(dt) {
 }
 
 // ------------------------------------------------------------ routing
-function dijkstra(src, dst, mode) {
+function dijkstra(src, dst, mode, all = false) {
   const n = D.nodes.length, dist = new Float64Array(n).fill(Infinity), prev = new Int32Array(n).fill(-1), pe = new Int32Array(n).fill(-1), done = new Uint8Array(n);
   dist[src] = 0;
   for (;;) {
@@ -332,6 +345,7 @@ function dijkstra(src, dst, mode) {
       if (dist[u] + c < dist[v]) { dist[v] = dist[u] + c; prev[v] = u; pe[v] = ei; }
     }
   }
+  if (all) return dist;
   if (dist[dst] === Infinity) return null;
   const nodes = [], edges = [];
   for (let v = dst; v !== -1; v = prev[v]) { nodes.unshift(v); if (pe[v] >= 0) edges.unshift(pe[v]); }
@@ -348,10 +362,10 @@ function planRoute() {
   const toRoom = S.to.room, fromRoom = S.from.room;
   if (S.role === 'diak' && toRoom && toRoom.staff) {
     res.hidden = false;
-    $('sum').innerHTML = `<span class="meta">Nincs diák‑útvonal</span>`;
+    $('sum').innerHTML = `<span class="meta">Ide nem tervezünk útvonalat</span>`;
     notice.hidden = false; notice.classList.add('warn');
-    notice.textContent = `${toRoom.name}${toRoom.sub ? ' (' + toRoom.sub + ')' : ''} csak tanárok számára van. Válts „Tanár” módra, ha tanár vagy.`;
-    $('steps').innerHTML = ''; $('walkBtn').disabled = true;
+    notice.textContent = `${toRoom.name}${toRoom.sub ? ' (' + toRoom.sub + ')' : ''} csak a tanárok használhatják. Ha tanár vagy, válts fent „Tanár” módra.`;
+    $('steps').innerHTML = ''; $('walkBtn').hidden = true;
     drawRoute(); return;
   }
   let mode = 'all', info = '';
@@ -365,7 +379,7 @@ function planRoute() {
       const who = nodeRestricted[S.to.node] ? S.to : S.from;
       info = `Ügyintézés: a(z) ${who.name}${who.room && who.room.sub ? ' (' + who.room.sub + ')' : ''} miatt beléphetsz a tanári folyosóra – csak a szükséges szakaszt használd.`;
     } else if (free && pathLength(p) - pathLength(free) > 2) {
-      info = `A tanári folyosón diákok csak ügyintézés céljából közlekedhetnek, ezért az útvonal kerülővel vezet (+${Math.round(pathLength(p) - pathLength(free))} m).`;
+      info = `A tanári folyosón diákok és látogatók csak ügyintézés céljából közlekedhetnek, ezért az útvonal kerülővel vezet (+${Math.round(pathLength(p) - pathLength(free))} m).`;
     }
     S.route = p;
   } else {
@@ -380,9 +394,7 @@ function planRoute() {
   $('sum').innerHTML = `<span class="big">${Math.max(1, Math.round(sec / 60))} perc</span><span class="meta">${Math.round(len)} m · ${lvChanges ? lvChanges + ' szintváltás' : 'egy szinten'}</span>`;
   r.steps = buildSteps(r);
   $('steps').innerHTML = r.steps.map((s, i) => `<li class="${s.cls || ''}" data-i="${i}">${esc(s.text)}${s.small ? `<small>${esc(s.small)}</small>` : ''}</li>`).join('');
-  r.photos = routePhotos(r);
-  $('walkBtn').disabled = !r.photos.length;
-  $('walkBtn').textContent = r.photos.length ? `Bejárás fotókkal (${r.photos.length})` : 'Ehhez az úthoz nincs fotó';
+  $('walkBtn').hidden = !photoNear(r.nodes[r.nodes.length - 1]);
   res.hidden = false;
   // floors with route
   const used = new Set(r.nodes.map((n) => D.nodes[n].level));
@@ -404,8 +416,9 @@ function buildSteps(r) {
   r.edges.forEach((ei, i) => {
     const e = D.edges[ei], a = D.nodes[r.nodes[i]], b = D.nodes[r.nodes[i + 1]];
     const g = groups[groups.length - 1];
-    if (g && g.kind === e.kind && g.name === e.name && e.kind === 'walk') { g.len += e.len; g.last = [a, b]; g.end = r.nodes[i + 1]; }
-    else groups.push({ kind: e.kind, name: e.name, len: e.len, first: [a, b], last: [a, b], start: r.nodes[i], end: r.nodes[i + 1], restricted: e.restricted, dl: b.level - a.level });
+    const ddy = e.kind === 'walk' ? (b.dy || 0) - (a.dy || 0) : 0;
+    if (g && g.kind === e.kind && g.name === e.name && e.kind === 'walk') { g.len += e.len; g.last = [a, b]; g.end = r.nodes[i + 1]; g.ddy += ddy; }
+    else groups.push({ kind: e.kind, name: e.name, len: e.len, first: [a, b], last: [a, b], start: r.nodes[i], end: r.nodes[i + 1], restricted: e.restricted, dl: b.level - a.level, ddy });
   });
   let lastDir = null;
   for (const g of groups) {
@@ -417,7 +430,8 @@ function buildSteps(r) {
     if (g.len < 1.5 && groups.length > 1) continue;
     const d = dirOf(g.first[0], g.first[1]);
     const verb = lastDir ? turnWord(lastDir, d) : steps.length > 1 ? 'Folytasd' : 'Indulj el';
-    steps.push({ text: `${verb}: ${g.name}`, small: `kb. ${Math.max(1, Math.round(g.len))} m${g.restricted ? ' · tanári folyosó' : ''}`, node: g.start });
+    const half = g.ddy > 0 ? ' · negyed emeletnyi lépcső fel' : g.ddy < 0 ? ' · negyed emeletnyi lépcső le' : '';
+    steps.push({ text: `${verb}: ${g.name}`, small: `${levelName(D.nodes[g.start].level)} · kb. ${Math.max(1, Math.round(g.len))} m${g.restricted ? ' · tanári folyosó' : ''}${half}`, node: g.start });
     lastDir = dirOf(g.last[0], g.last[1]);
   }
   let side = '';
@@ -440,7 +454,7 @@ const chevGeo = new THREE.ConeGeometry(0.32, 0.8, 3); chevGeo.rotateX(Math.PI / 
 const chevMat = new THREE.MeshBasicMaterial({ color: 0xf7dd0f, depthTest: false, transparent: true });
 let routeCurve = null, chevrons = null, pinStart = null, pinEnd = null;
 function routePoints() {
-  return S.route.nodes.map((ni) => { const n = D.nodes[ni]; return new THREE.Vector3(n.x, S.levelY[n.level] + 0.45, n.z); });
+  return S.route.nodes.map((ni) => { const n = D.nodes[ni]; return new THREE.Vector3(n.x, S.levelY[n.level] + DY(n) + 0.45, n.z); });
 }
 function makePin(cls, text) {
   const el = document.createElement('div'); el.className = 'tag pin ' + cls; el.textContent = text;
@@ -521,7 +535,7 @@ function frameRoute() {
   const lvls = new Set(pts.map((p) => p.level));
   if (lvls.size === 1) { S.level = [...lvls][0]; } else { S.level = 'all'; }
   applyLevelMode();
-  fitPoints(pts.map((n) => new THREE.Vector3(n.x, S.levelTarget[n.level], n.z)), lvls.size === 1 ? 60 : 48, -10, 1.15);
+  fitPoints(pts.map((n) => new THREE.Vector3(n.x, S.levelTarget[n.level] + DY(n), n.z)), lvls.size === 1 ? 60 : 48, -10, 1.15);
 }
 
 // ------------------------------------------------------------ UI: floors, legend, search
@@ -573,15 +587,34 @@ function setPlace(which, p) { S[which] = p; $(which + 'Input').value = p ? place
 function placeLabel(p) { return p.room && p.room.sub && p.room.type !== 'class' ? `${p.name} – ${p.room.sub}` : p.name; }
 const placeByName = (n) => places.find((p) => p.name === n);
 setPlace('from', placeByName('Főbejárat (Porta)'));
+function nearest(kind) {
+  if (!S.from) return;
+  const dist = dijkstra(S.from.node, -1, S.role === 'diak' ? 'forbid' : 'all', true);
+  const isWc = (p, g) => p.room && p.room.type === 'wc' && !(S.role === 'diak' && p.room.staff) && (g === 'noi' ? /noi/.test(p.key) : /ferfi/.test(p.key));
+  const cands = places.filter((p) => p.node !== S.from.node && (kind === 'exit' ? p.kind === 'exit' : isWc(p, kind)));
+  let best = null;
+  for (const p of cands) if (dist[p.node] < (best ? dist[best.node] : Infinity)) best = p;
+  if (best) setPlace('to', best);
+}
 const QUICK = [['F224', 'Titkárság'], ['F207'], ['F225'], ['Büfé'], ['F109'], ['L016'], ['F218'], ['H008']].map(([n, sub]) => places.find((p) => p.name === n && (!sub || (p.room && p.room.sub === sub)))).filter(Boolean);
-$('quick').innerHTML = QUICK.map((p, i) => `<button class="chip" data-i="${i}">${esc(p.room.type === 'class' ? p.name : p.room.sub || p.name)}</button>`).join('');
-$('quick').addEventListener('click', (e) => { const b = e.target.closest('.chip'); if (b) setPlace('to', QUICK[+b.dataset.i]); });
+$('quick').innerHTML = '<span class="qlab">Legközelebbi:</span><button class="chip strong" data-n="noi">Női mosdó</button><button class="chip strong" data-n="ferfi">Férfi mosdó</button><button class="chip strong" data-n="exit">Kijárat</button><span class="qlab">Népszerű helyek:</span>' +
+  QUICK.map((p, i) => `<button class="chip" data-i="${i}">${esc(p.room.type === 'class' ? p.name : p.room.sub || p.name)}</button>`).join('');
+$('quick').addEventListener('click', (e) => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  if (b.dataset.n) nearest(b.dataset.n); else setPlace('to', QUICK[+b.dataset.i]);
+});
+// help / welcome
+function showHelp(v) { $('help').hidden = !v; if (v) $('helpOk').focus(); }
+$('helpBtn').addEventListener('click', () => showHelp(true));
+$('helpOk').addEventListener('click', () => { showHelp(false); try { localStorage.setItem('iparimap-help', '1'); } catch (e) {} });
+$('help').addEventListener('click', (e) => { if (e.target.id === 'help') showHelp(false); });
+{ let seen = null; try { seen = localStorage.getItem('iparimap-help'); } catch (e) {} if (!seen) showHelp(true); }
 $('swapBtn').addEventListener('click', () => { const f = S.from; S.from = S.to; S.to = f; $('fromInput').value = S.from ? placeLabel(S.from) : ''; $('toInput').value = S.to ? placeLabel(S.to) : ''; planRoute(); });
 $('clearBtn').addEventListener('click', () => { setPlace('to', null); document.querySelectorAll('.floors button').forEach((b) => b.classList.remove('has-route')); });
 $('steps').addEventListener('click', (e) => {
   const li = e.target.closest('li'); if (!li || !S.route) return;
   const n = D.nodes[S.route.steps[+li.dataset.i].node];
-  const c = new THREE.Vector3(n.x, S.levelTarget[n.level], n.z);
+  const c = new THREE.Vector3(n.x, S.levelTarget[n.level] + DY(n), n.z);
   flyTo(new THREE.Vector3(n.x - 4, c.y + 30, n.z + 26), c);
 });
 function setRole(r) {
@@ -615,7 +648,7 @@ renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5 || S.sv) return;
   const h = pick(e);
-  if (h && h.photo) openStreet(h.photo, { fly: true });
+  if (h && h.photo) openStreet(h.photo);
   else if (h && h.room) showCard(h.room);
   else $('card').hidden = true;
 });
@@ -626,7 +659,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   renderer.domElement.style.cursor = h ? 'pointer' : '';
   if (h && h.photo) {
     tip.hidden = false; tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px';
-    if (hoverId !== h.photo.id) { hoverId = h.photo.id; tip.innerHTML = `<img src="${PHOTO_BASE + h.photo.file}" alt=""><b>${esc(h.photo.caption)}</b><br><small>${esc(levelName(h.photo.level))} · kattints az utcaképhez</small>`; }
+    if (hoverId !== h.photo.id) { hoverId = h.photo.id; tip.innerHTML = `<img src="${PHOTO_BASE + h.photo.file}" alt=""><b>${esc(h.photo.caption)}</b><br><small>${esc(levelName(h.photo.level))} · kattints a körülnézéshez</small>`; }
   } else if (h && h.room) {
     tip.hidden = false; tip.style.left = e.clientX + 14 + 'px'; tip.style.top = e.clientY + 14 + 'px';
     const key = 'r' + h.room.id;
@@ -650,7 +683,7 @@ function showCard(room) {
   const p = nearestPhoto(room);
   c.innerHTML = `<button class="x" aria-label="Bezárás">×</button><h3>${esc(room.name)}${room.staff ? '<span class="badge">csak tanároknak</span>' : ''}</h3>
     <p>${esc([room.sub, levelName(room.level)].filter(Boolean).join(' · '))}${room.estimated ? ' · becsült elrendezés' : ''}</p>
-    <div class="row"><button class="btn primary" data-a="to">Útvonal ide</button><button class="btn" data-a="from">Innen indulok</button>${p ? '<button class="btn" data-a="photo">Megnézem fotón</button>' : ''}</div>`;
+    <div class="row"><button class="btn primary" data-a="to">Útvonal ide</button><button class="btn" data-a="from">Innen indulok</button>${p ? '<button class="btn" data-a="photo">Fotó a helyről</button>' : ''}</div>`;
   c.hidden = false;
   c.onclick = (e) => {
     const a = e.target.closest('button'); if (!a) return;
@@ -658,286 +691,132 @@ function showCard(room) {
     if (a.classList.contains('x')) c.hidden = true;
     else if (a.dataset.a === 'to') { setPlace('to', place); c.hidden = true; }
     else if (a.dataset.a === 'from') { setPlace('from', place); c.hidden = true; }
-    else if (a.dataset.a === 'photo') { c.hidden = true; openStreet(p, { fly: true }); }
+    else if (a.dataset.a === 'photo') { c.hidden = true; openStreet(p); }
   };
 }
 
-// ------------------------------------------------------------ street view
-const sv = { cur: null, front: $('svA'), back: $('svB'), pan: [0, 0], zoom: 1, list: null, idx: 0, busy: false };
+// ------------------------------------------------------------ photo view (look around only)
+const sv = { cur: null, img: $('svA'), pan: [0, 0], zoom: 1.3 };
 const roomsByLevel = {};
 for (const r of D.rooms) (roomsByLevel[r.level] ||= []).push(r);
-function insidePoly(x, z, poly) {
-  let ins = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [xi, zi] = poly[i], [xj, zj] = poly[j];
-    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) ins = !ins;
-  }
-  return ins;
-}
-function blocked(p, q) {
-  // a straight line between two photos may not cut through a room (=fal)
-  for (let i = 1; i < 8; i++) {
-    const t = i / 8, x = lerp(p.x, q.x, t), z = lerp(p.z, q.z, t);
-    for (const r of roomsByLevel[p.level]) if (r.type !== 'stair' && insidePoly(x, z, r.poly)) {
-      // allow if one endpoint is already inside the same room (e.g. lépcsőház, előtér)
-      if (insidePoly(p.x, p.z, r.poly) || insidePoly(q.x, q.z, r.poly)) continue;
-      return true;
-    }
-  }
-  return false;
-}
-const stairNodes = D.nodes.filter((n) => n.kind === 'stair');
-function nearStair(p, r = 7) { return stairNodes.some((n) => n.level === p.level && Math.hypot(n.x - p.x, n.z - p.z) < r); }
-function neighbors(p) {
-  const moves = [], turns = [], vert = [];
-  for (const q of D.photos) {
-    if (q === p) continue;
-    const dx = q.x - p.x, dz = q.z - p.z, d = Math.hypot(dx, dz);
-    if (q.level !== p.level) {
-      if (Math.abs(q.level - p.level) === 1 && nearStair(p) && nearStair(q) && d < 30) {
-        // only connect photos around the same staircase
-        const pair = D.edges.some((e) => e.kind === 'stair' && [e.a, e.b].every((ni) => { const n = D.nodes[ni]; return (n.level === p.level && Math.hypot(n.x - p.x, n.z - p.z) < 7) || (n.level === q.level && Math.hypot(n.x - q.x, n.z - q.z) < 7); }));
-        if (pair) vert.push({ q, d, dir: q.level > p.level ? 'up' : 'down' });
-      }
-      continue;
-    }
-    if (d < 1.4) { const hd = angDiff(q.heading, p.heading); if (Math.abs(hd) > 20) turns.push({ q, rel: hd }); continue; }
-    if (d > 24 || blocked(p, q)) continue;
-    const bearing = (Math.atan2(dx, -dz) * 180) / Math.PI;
-    const rel = angDiff(bearing, p.heading);
-    const align = Math.cos((angDiff(q.heading, bearing) * Math.PI) / 180);
-    moves.push({ q, d, rel, score: d * (1.6 - 0.6 * align) });
-  }
-  // one arrow per 50° sector, best score wins
-  const sectors = {};
-  for (const m of moves) {
-    const s = Math.round(m.rel / 50);
-    const k = s === -4 ? 4 : s;
-    if (!sectors[k] || m.score < sectors[k].score) sectors[k] = m;
-  }
-  vert.sort((a, b) => a.d - b.d);
-  const vbest = {}; for (const v of vert) vbest[v.dir] ||= v;
-  return { moves: Object.values(sectors), turns, vert: Object.values(vbest) };
-}
-const ARROW = '<svg viewBox="0 0 100 100"><path d="M50 8 L92 70 L64 60 L50 92 L36 60 L8 70 Z" fill="rgba(255,255,255,.92)" stroke="rgba(0,0,0,.35)" stroke-width="3"/></svg>';
-function routeNextFrom(p) {
-  if (!sv.list) return null;
-  return sv.list[sv.idx + 1] || null;
-}
-function renderArrows() {
-  const p = sv.cur, nb = neighbors(p), floor = $('svFloor');
-  const nextRoute = routeNextFrom(p);
-  const R = 205;
-  floor.innerHTML = '';
-  for (const m of nb.moves) {
-    const a = (m.rel * Math.PI) / 180;
-    const b = document.createElement('button');
-    b.className = 'sv-arrow' + (nextRoute === m.q ? ' route' : '');
-    b.style.transform = `translate(${Math.sin(a) * R}px, ${-Math.cos(a) * R}px) rotate(${m.rel}deg)`;
-    b.innerHTML = ARROW + `<span class="d" style="transform:translateX(-50%) rotate(${-m.rel}deg)">${Math.round(m.d)} m</span>`;
-    b.title = m.q.caption;
-    b.onclick = () => go(m.q, m.rel);
-    floor.appendChild(b);
-  }
-  for (const v of nb.vert) {
-    const b = document.createElement('button');
-    b.className = 'sv-arrow';
-    const off = v.dir === 'up' ? -1 : 1;
-    b.style.transform = `translate(${off * R * 0.95}px, ${R * 0.55}px) rotate(${v.dir === 'up' ? -90 : 90}deg)`;
-    b.innerHTML = ARROW + `<span class="d" style="transform:translateX(-50%) rotate(${v.dir === 'up' ? 90 : -90}deg)">${v.dir === 'up' ? 'fel' : 'le'}: ${esc(levelName(v.q.level))}</span>`;
-    b.onclick = () => go(v.q, 0, v.dir);
-    floor.appendChild(b);
-  }
-  const tl = nb.turns.filter((t) => t.rel < 0).sort((a, b) => b.rel - a.rel)[0];
-  const tr = nb.turns.filter((t) => t.rel > 0).sort((a, b) => a.rel - b.rel)[0];
-  $('svTurnL').hidden = !tl; $('svTurnR').hidden = !tr;
-  $('svTurnL').onclick = () => tl && go(tl.q, tl.rel, 'turn');
-  $('svTurnR').onclick = () => tr && go(tr.q, tr.rel, 'turn');
-  sv.nb = { ...nb, tl, tr };
-}
+const DIRS = ['észak', 'északkelet', 'kelet', 'délkelet', 'dél', 'délnyugat', 'nyugat', 'északnyugat'];
 function setCaption() {
   const p = sv.cur;
   $('svCap').textContent = p.caption;
-  const dirs = ['észak', 'északkelet', 'kelet', 'délkelet', 'dél', 'délnyugat', 'nyugat', 'északnyugat'];
-  $('svSub').textContent = `${levelName(p.level)} · nézési irány: ${dirs[Math.round(((p.heading % 360) + 360) % 360 / 45) % 8]} (az alaprajzon) · ${p.file.split('/').pop()}`;
-  if (sv.list) {
-    $('svRoute').hidden = false;
-    $('svStep').textContent = `${sv.idx + 1} / ${sv.list.length}`;
-    $('svBar').style.setProperty('--p', `${((sv.idx + 1) / sv.list.length) * 100}%`);
-    $('svPrev').disabled = sv.idx === 0;
-    $('svNext').textContent = sv.idx === sv.list.length - 1 ? 'Cél ✓' : 'Következő ▶';
-  } else $('svRoute').hidden = true;
+  $('svSub').textContent = levelName(p.level);
 }
-function applyPan(img = sv.front) {
-  img.style.transform = `translate(${sv.pan[0]}px, ${sv.pan[1]}px) scale(${sv.zoom})`;
+function clampPan() {
+  const st = $('svStage'), w = st.clientWidth, h = st.clientHeight;
+  const mx = (w * (sv.zoom - 1)) / 2, my = (h * (sv.zoom - 1)) / 2;
+  sv.pan = [Math.max(-mx, Math.min(mx, sv.pan[0])), Math.max(-my, Math.min(my, sv.pan[1]))];
 }
+function applyPan(anim) {
+  sv.img.style.transition = anim ? 'transform .45s cubic-bezier(.2,.7,.2,1)' : 'none';
+  sv.img.style.transform = `translate(${sv.pan[0]}px, ${sv.pan[1]}px) scale(${sv.zoom})`;
+}
+function setZoom(z, anim = true) { sv.zoom = Math.max(1, Math.min(3, z)); clampPan(); applyPan(anim); }
 function loadImg(img, p) {
   return new Promise((res) => { img.onload = img.onerror = () => res(); img.src = PHOTO_BASE + p.file; img.alt = p.caption; if (img.complete && img.naturalWidth) res(); });
 }
-async function go(q, rel = 0, kind) {
-  if (sv.busy || !q) return;
-  sv.busy = true;
-  if (sv.list) { const i = sv.list.indexOf(q); if (i >= 0) sv.idx = i; }
-  const A = sv.front, B = sv.back;
-  await loadImg(B, q);
-  const dur = matchMedia('(prefers-reduced-motion: reduce)').matches ? 1 : 650;
-  let outT, inT0;
-  if (kind === 'turn' || (Math.abs(rel) > 45 && Math.abs(rel) < 135)) {
-    const s = rel > 0 ? -1 : 1;
-    outT = `translate(${s * 45}%, 0) scale(1.05)`; inT0 = `translate(${-s * 45}%, 0) scale(1.05)`;
-  } else if (kind === 'up' || kind === 'down') {
-    const s = kind === 'up' ? 1 : -1;
-    outT = `translate(0, ${s * 40}%) scale(1.1)`; inT0 = `translate(0, ${-s * 40}%) scale(1.1)`;
-  } else if (Math.abs(rel) >= 135) { outT = 'scale(0.82)'; inT0 = 'scale(1.3)'; }
-  else {
-    const a = (rel * Math.PI) / 180;
-    outT = `translate(${-Math.sin(a) * 18}%, 4%) scale(1.75)`; inT0 = 'scale(0.9)';
-  }
-  B.style.transition = 'none'; B.style.opacity = '0'; B.style.transform = inT0; B.style.zIndex = 2; A.style.zIndex = 1;
-  void B.offsetWidth;
-  A.style.transition = B.style.transition = `transform ${dur}ms cubic-bezier(.3,.6,.25,1), opacity ${dur}ms ease`;
-  A.style.transform = outT; A.style.opacity = '0';
-  sv.pan = [0, 0]; sv.zoom = 1.08;
-  B.style.opacity = '1'; applyPan(B);
-  await new Promise((r) => setTimeout(r, dur));
-  sv.front = B; sv.back = A;
-  sv.cur = q;
-  setCaption(); renderArrows(); drawMini();
-  sv.busy = false;
-}
-async function openStreet(p, opts = {}) {
+async function openStreet(p) {
   if (!p) return;
   $('card').hidden = true; $('tip').hidden = true;
-  sv.list = opts.list || null; sv.idx = opts.idx || 0;
   sv.cur = p;
-  if (opts.fly) {
-    // camera dives into the model at eye height, looking the way the photo was taken
-    if (S.level !== 'all' && S.level !== p.level) { S.level = p.level; applyLevelMode(); }
-    sv.returnTo = { p: camera.position.clone(), t: controls.target.clone() };
-    const h = (p.heading * Math.PI) / 180;
-    const y = S.levelTarget[p.level] + 1.5;
-    const eye = new THREE.Vector3(p.x - Math.sin(h) * 2.5, y, p.z + Math.cos(h) * 2.5);
-    const tgt = new THREE.Vector3(p.x + Math.sin(h) * 6, y, p.z - Math.cos(h) * 6);
-    controls.minDistance = 0.5; controls.maxPolarAngle = Math.PI * 0.52;
-    await new Promise((res) => flyTo(eye, tgt, 1100, res));
-  } else if (!sv.returnTo) sv.returnTo = { p: camera.position.clone(), t: controls.target.clone() };
+  // the camera dives into the model at eye height, facing the way the photo was taken
+  if (S.level !== 'all' && S.level !== p.level) { S.level = p.level; applyLevelMode(); }
+  sv.returnTo = { p: camera.position.clone(), t: controls.target.clone() };
+  const h = (p.heading * Math.PI) / 180, y = S.levelTarget[p.level] + DY(p) + 1.5;
+  const eye = new THREE.Vector3(p.x - Math.sin(h) * 2.5, y, p.z + Math.cos(h) * 2.5);
+  const tgt = new THREE.Vector3(p.x + Math.sin(h) * 6, y, p.z - Math.cos(h) * 6);
+  controls.minDistance = 0.5; controls.maxPolarAngle = Math.PI * 0.52;
+  const loaded = loadImg(sv.img, p);
+  await new Promise((res) => flyTo(eye, tgt, 1100, res));
+  await loaded;
   S.sv = true;
-  const A = sv.front;
-  await loadImg(A, p);
-  A.style.transition = 'none'; A.style.opacity = '1'; A.style.zIndex = 2; sv.back.style.opacity = '0';
-  sv.pan = [0, 0]; sv.zoom = 1.25; applyPan(A);
+  sv.pan = [0, 0]; sv.zoom = 1.6; applyPan(false);
   const el = $('sv'); el.hidden = false; void el.offsetWidth; el.classList.add('show');
-  requestAnimationFrame(() => { A.style.transition = 'transform 900ms cubic-bezier(.2,.7,.2,1)'; sv.zoom = 1.08; applyPan(A); });
-  setCaption(); renderArrows(); drawMini();
+  requestAnimationFrame(() => setZoom(1.3));
+  setCaption(); drawMini();
+  $('svBack').focus();
 }
 function closeStreet() {
   const el = $('sv'); el.classList.remove('show');
   setTimeout(() => { el.hidden = true; }, 350);
-  S.sv = null; sv.list = null;
+  S.sv = null;
   controls.minDistance = 8; controls.maxPolarAngle = Math.PI * 0.47;
   if (sv.returnTo) { flyTo(sv.returnTo.p, sv.returnTo.t, 1000); sv.returnTo = null; }
 }
 $('svBack').onclick = closeStreet;
-$('svNext').onclick = () => { if (sv.list && sv.idx < sv.list.length - 1) { const q = sv.list[sv.idx + 1]; go(q, relTo(q)); } else closeStreet(); };
-$('svPrev').onclick = () => { if (sv.list && sv.idx > 0) { const q = sv.list[sv.idx - 1]; go(q, relTo(q)); } };
-function relTo(q) {
-  const p = sv.cur, d = Math.hypot(q.x - p.x, q.z - p.z);
-  if (q.level !== p.level) return 0;
-  if (d < 1.4) return angDiff(q.heading, p.heading);
-  return angDiff((Math.atan2(q.x - p.x, -(q.z - p.z)) * 180) / Math.PI, p.heading);
-}
+$('svZoomIn').onclick = () => setZoom(sv.zoom * 1.25);
+$('svZoomOut').onclick = () => setZoom(sv.zoom / 1.25);
 addEventListener('keydown', (e) => {
-  if (!S.sv) { if (e.key === 'Escape') $('card').hidden = true; return; }
-  if (sv.busy) return;
-  if (e.key === 'Escape') return closeStreet();
-  const nb = sv.nb; if (!nb) return;
-  const pickDir = (lo, hi) => nb.moves.filter((m) => m.rel >= lo && m.rel <= hi).sort((a, b) => Math.abs(a.rel) - Math.abs(b.rel))[0];
-  if (e.key === 'ArrowUp') { const m = pickDir(-55, 55); if (m) go(m.q, m.rel); else if (sv.list) $('svNext').click(); }
-  else if (e.key === 'ArrowDown') { const m = nb.moves.filter((x) => Math.abs(x.rel) > 125).sort((a, b) => a.d - b.d)[0]; if (m) go(m.q, m.rel); }
-  else if (e.key === 'ArrowLeft') { if (nb.tl) go(nb.tl.q, nb.tl.rel, 'turn'); else { const m = pickDir(-130, -40); if (m) go(m.q, m.rel); } }
-  else if (e.key === 'ArrowRight') { if (nb.tr) go(nb.tr.q, nb.tr.rel, 'turn'); else { const m = pickDir(40, 130); if (m) go(m.q, m.rel); } }
+  if (!S.sv) { if (e.key === 'Escape') { $('card').hidden = true; $('help').hidden = true; } return; }
+  const step = 80, k = e.key;
+  if (k === 'Escape') return closeStreet();
+  if (k === 'ArrowLeft') sv.pan[0] += step; else if (k === 'ArrowRight') sv.pan[0] -= step;
+  else if (k === 'ArrowUp') sv.pan[1] += step; else if (k === 'ArrowDown') sv.pan[1] -= step;
+  else if (k === '+' || k === '=') return setZoom(sv.zoom * 1.25);
+  else if (k === '-') return setZoom(sv.zoom / 1.25);
   else return;
-  e.preventDefault();
+  e.preventDefault(); clampPan(); applyPan(true);
 });
-// drag to look around (pan within the photo), wheel to zoom
+// drag (mouse or one finger) to look around, wheel or two fingers to zoom
 {
-  const st = $('svStage'); let drag = null;
-  st.addEventListener('pointerdown', (e) => { drag = [e.clientX, e.clientY, ...sv.pan]; st.classList.add('drag'); st.setPointerCapture(e.pointerId); sv.front.style.transition = 'none'; });
-  st.addEventListener('pointermove', (e) => {
-    if (!drag) return;
-    const w = st.clientWidth, h = st.clientHeight, mx = (w * (sv.zoom - 1)) / 2 + 30, my = (h * (sv.zoom - 1)) / 2 + 20;
-    sv.pan = [Math.max(-mx, Math.min(mx, drag[2] + e.clientX - drag[0])), Math.max(-my, Math.min(my, drag[3] + e.clientY - drag[1]))];
-    applyPan();
+  const st = $('svStage'), pts = new Map();
+  let drag = null, pinch = null;
+  st.addEventListener('pointerdown', (e) => {
+    st.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pts.size === 1) drag = [e.clientX, e.clientY, ...sv.pan];
+    if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = [Math.hypot(a[0] - b[0], a[1] - b[1]), sv.zoom]; drag = null; }
+    st.classList.add('drag');
   });
-  const end = () => { if (!drag) return; drag = null; st.classList.remove('drag'); sv.front.style.transition = 'transform .5s ease'; const w = st.clientWidth, h = st.clientHeight; const mx = (w * (sv.zoom - 1)) / 2, my = (h * (sv.zoom - 1)) / 2; sv.pan = [Math.max(-mx, Math.min(mx, sv.pan[0])), Math.max(-my, Math.min(my, sv.pan[1]))]; applyPan(); };
+  st.addEventListener('pointermove', (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, [e.clientX, e.clientY]);
+    if (pinch && pts.size === 2) { const [a, b] = [...pts.values()]; sv.zoom = Math.max(1, Math.min(3, pinch[1] * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch[0])); clampPan(); applyPan(false); return; }
+    if (!drag) return;
+    sv.pan = [drag[2] + e.clientX - drag[0], drag[3] + e.clientY - drag[1]];
+    clampPan(); applyPan(false);
+  });
+  const end = (e) => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; if (!pts.size) { drag = null; st.classList.remove('drag'); } };
   st.addEventListener('pointerup', end); st.addEventListener('pointercancel', end);
-  st.addEventListener('wheel', (e) => { e.preventDefault(); sv.front.style.transition = 'transform .15s'; sv.zoom = Math.max(1.0, Math.min(2.6, sv.zoom * (e.deltaY < 0 ? 1.1 : 0.9))); if (sv.zoom <= 1.0) sv.pan = [0, 0]; applyPan(); }, { passive: false });
+  st.addEventListener('wheel', (e) => { e.preventDefault(); setZoom(sv.zoom * (e.deltaY < 0 ? 1.12 : 0.89), false); }, { passive: false });
 }
-// minimap
+// minimap: where the photo was taken and which way it looks
 const mini = $('svMini'), mg = mini.getContext('2d');
-let miniView = null;
 function drawMini() {
   const p = sv.cur; if (!p) return;
-  const W = mini.width, H = mini.height, sc = 6.5; // px / m
-  miniView = { cx: p.x, cz: p.z, sc, W, H };
+  const W = mini.width, H = mini.height, sc = 6.5;
   const X = (x) => W / 2 + (x - p.x) * sc, Z = (z) => H / 2 + (z - p.z) * sc;
   mg.clearRect(0, 0, W, H);
   const poly = (pts) => { mg.beginPath(); pts.forEach((q, i) => (i ? mg.lineTo(X(q[0]), Z(q[1])) : mg.moveTo(X(q[0]), Z(q[1])))); mg.closePath(); };
   for (const c of D.corridors.filter((c) => c.level === p.level)) { poly(c.poly); mg.fillStyle = c.restricted ? '#f6c9ca' : '#ece9e2'; mg.fill(); }
-  for (const r of roomsByLevel[p.level]) { poly(r.poly); mg.fillStyle = TYPE[r.type][0]; mg.fill(); mg.strokeStyle = '#8a857b'; mg.lineWidth = 1.5; mg.stroke(); }
+  for (const r of roomsByLevel[p.level]) {
+    poly(r.poly); mg.fillStyle = TYPE[r.type][0]; mg.fill(); mg.strokeStyle = '#8a857b'; mg.lineWidth = 1.5; mg.stroke();
+    if (r.area > 20) { mg.font = '600 15px Barlow, sans-serif'; mg.fillStyle = '#3a3733'; mg.textAlign = 'center'; mg.fillText(r.name, X(r.cx), Z(r.cz) + 5); }
+  }
+  mg.textAlign = 'start';
   if (S.route) {
     mg.beginPath(); let started = false;
     for (const ni of S.route.nodes) { const n = D.nodes[ni]; if (n.level !== p.level) { started = false; continue; } if (!started) { mg.moveTo(X(n.x), Z(n.z)); started = true; } else mg.lineTo(X(n.x), Z(n.z)); }
     mg.strokeStyle = '#E11F26'; mg.lineWidth = 5; mg.stroke();
   }
-  for (const q of D.photos) if (q.level === p.level && q !== p) { mg.beginPath(); mg.arc(X(q.x), Z(q.z), 4, 0, 7); mg.fillStyle = '#1a73e8'; mg.fill(); }
   const h = (p.heading * Math.PI) / 180;
   mg.beginPath(); mg.moveTo(W / 2, H / 2);
-  mg.arc(W / 2, H / 2, 46, h - Math.PI / 2 - 0.55, h - Math.PI / 2 + 0.55); mg.closePath();
-  const gr = mg.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 46); gr.addColorStop(0, 'rgba(26,115,232,.55)'); gr.addColorStop(1, 'rgba(26,115,232,0)');
+  mg.arc(W / 2, H / 2, 52, h - Math.PI / 2 - 0.55, h - Math.PI / 2 + 0.55); mg.closePath();
+  const gr = mg.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 52); gr.addColorStop(0, 'rgba(26,115,232,.6)'); gr.addColorStop(1, 'rgba(26,115,232,0)');
   mg.fillStyle = gr; mg.fill();
-  mg.beginPath(); mg.arc(W / 2, H / 2, 8, 0, 7); mg.fillStyle = '#fff'; mg.fill(); mg.beginPath(); mg.arc(W / 2, H / 2, 6, 0, 7); mg.fillStyle = '#1a73e8'; mg.fill();
-  mg.font = '600 20px Barlow, sans-serif'; mg.fillStyle = '#2b2a29'; mg.fillText(levelName(p.level), 10, 26);
+  mg.beginPath(); mg.arc(W / 2, H / 2, 9, 0, 7); mg.fillStyle = '#fff'; mg.fill(); mg.beginPath(); mg.arc(W / 2, H / 2, 6.5, 0, 7); mg.fillStyle = '#1a73e8'; mg.fill();
+  mg.fillStyle = 'rgba(255,255,255,.85)'; mg.fillRect(0, 0, W, 34);
+  mg.font = '600 20px Barlow, sans-serif'; mg.fillStyle = '#2b2a29'; mg.fillText(`${levelName(p.level)} · itt készült a kép`, 10, 24);
 }
-mini.addEventListener('click', (e) => {
-  if (!miniView) return;
-  const r = mini.getBoundingClientRect(), k = mini.width / r.width;
-  const mx = (e.clientX - r.left) * k, my = (e.clientY - r.top) * k;
-  let best = null, bd = 18;
-  for (const q of D.photos) {
-    if (q.level !== sv.cur.level || q === sv.cur) continue;
-    const d = Math.hypot(miniView.W / 2 + (q.x - miniView.cx) * miniView.sc - mx, miniView.H / 2 + (q.z - miniView.cz) * miniView.sc - my);
-    if (d < bd) { bd = d; best = q; }
-  }
-  if (best) go(best, relTo(best));
-});
-
-// photos along the route, in walking order and facing the walking direction
-function routePhotos(r) {
-  const out = [], used = new Set();
-  for (let i = 0; i < r.edges.length; i++) {
-    const a = D.nodes[r.nodes[i]], b = D.nodes[r.nodes[i + 1]];
-    if (a.level !== b.level) continue;
-    const L = Math.hypot(b.x - a.x, b.z - a.z); if (L < 0.01) continue;
-    const ux = (b.x - a.x) / L, uz = (b.z - a.z) / L;
-    const walkHeading = (Math.atan2(ux, -uz) * 180) / Math.PI;
-    const cands = [];
-    for (const p of D.photos) {
-      if (p.level !== a.level || used.has(p)) continue;
-      const t = (p.x - a.x) * ux + (p.z - a.z) * uz;
-      if (t < -1.5 || t > L + 1.5) continue;
-      const off = Math.abs((p.x - a.x) * uz - (p.z - a.z) * ux);
-      if (off > 3.2) continue;
-      if (Math.abs(angDiff(p.heading, walkHeading)) > 60) continue;
-      cands.push({ p, t });
-    }
-    cands.sort((x, y) => x.t - y.t);
-    let lastT = -99;
-    for (const c of cands) { if (c.t - lastT < 2.5) continue; out.push(c.p); used.add(c.p); lastT = c.t; }
-  }
-  return out;
+// photo nearest to the destination ("így néz ki ott")
+function photoNear(node) {
+  const n = D.nodes[node]; let best = null, bd = 12;
+  for (const p of D.photos) { if (p.level !== n.level) continue; const d = Math.hypot(p.x - n.x, p.z - n.z); if (d < bd) { bd = d; best = p; } }
+  return best;
 }
-$('walkBtn').addEventListener('click', () => { if (S.route && S.route.photos.length) openStreet(S.route.photos[0], { fly: true, list: S.route.photos, idx: 0 }); });
+$('walkBtn').addEventListener('click', () => { const p = S.route && photoNear(S.route.nodes[S.route.nodes.length - 1]); if (p) openStreet(p); });
 
 // ------------------------------------------------------------ render loop
 applyLevelMode();
@@ -969,6 +848,7 @@ function frame(now) {
   for (const lv of LEVELS) levelGroups[lv].userData.tag.visible = S.level === 'all' && !S.sv;
   for (const o of extraTags) o.visible = !S.sv && levelGroups[o.userData.level].visible && S.alphaTarget[o.userData.level] > 0.5;
   if (pinStart) { pinStart.visible = pinEnd.visible = !S.sv; }
+  { const dcam = camera.position.distanceTo(controls.target); scene.fog.near = dcam * 1.4 + 40; scene.fog.far = dcam * 3 + 200; }
   if (!S.sv) controls.update();
   renderer.render(scene, camera);
   labelRenderer.render(scene, camera);

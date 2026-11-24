@@ -3,7 +3,7 @@ Run: python3 build.py   (needs numpy + opencv-python)"""
 import json, os, glob, math, sys
 import numpy as np, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from rooms import ROOMS, CORRIDORS, CORRIDOR_RECTS, CORRIDOR_POLYS, LINES, STAIRS, EXITS
+from rooms import OFFSETS, ROOMS, CORRIDORS, CORRIDOR_RECTS, CORRIDOR_POLYS, LINES, STAIRS, EXITS
 from photos import PHOTOS
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -65,6 +65,15 @@ def comp_polys(level, comps):
         out.append([(int(p[0]), int(p[1])) for p in a])
     return out
 
+def dy_at(level, x, y):
+    for lv, (x0, y0, x1, y1), excl, dy in OFFSETS:
+        if lv == level and x0 <= x <= x1 and y0 <= y <= y1 and not any(a <= x <= c and b_ <= y <= d for a, b_, c, d in excl):
+            return dy
+    return 0
+
+def poly_center(poly):
+    return sum(p[0] for p in poly) / len(poly), sum(p[1] for p in poly) / len(poly)
+
 def rect_poly(r):
     x0, y0, x1, y1 = r
     return [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
@@ -78,16 +87,17 @@ for i, (lv, name, sub, typ, geom, extra) in enumerate(ROOMS):
     rect = comp_bbox(lv, geom) if isinstance(geom, list) else geom
     rooms.append(dict(id=f'r{i}', level=lv, name=name, sub=sub, type=typ, rect_px=rect,
                       poly=wpoly(lv, rect_poly(rect)), staff=bool(extra.get('staff')),
+                      dy=dy_at(lv, (rect[0]+rect[2])/2, (rect[1]+rect[3])/2),
                       estimated=(lv == 3)))
 
 corridors = []
 for lv, comps, restricted in CORRIDORS:
     for p in comp_polys(lv, comps):
-        corridors.append(dict(level=lv, poly=wpoly(lv, p), restricted=restricted))
+        corridors.append(dict(level=lv, poly=wpoly(lv, p), restricted=restricted, dy=dy_at(lv, *poly_center(p))))
 for lv, r, restricted in CORRIDOR_RECTS:
-    corridors.append(dict(level=lv, poly=wpoly(lv, rect_poly(r)), restricted=restricted))
+    corridors.append(dict(level=lv, poly=wpoly(lv, rect_poly(r)), restricted=restricted, dy=dy_at(lv, (r[0]+r[2])/2, (r[1]+r[3])/2)))
 for lv, pts, restricted in CORRIDOR_POLYS:
-    corridors.append(dict(level=lv, poly=wpoly(lv, pts), restricted=restricted))
+    corridors.append(dict(level=lv, poly=wpoly(lv, pts), restricted=restricted, dy=dy_at(lv, *poly_center(pts))))
 
 # ---------- graph ----------
 nodes = {}   # key -> dict
@@ -178,7 +188,7 @@ photos = []
 for num, lv, x, y, hdg, cap in PHOTOS:
     wx, wz = to_world(lv, x, y)
     photos.append(dict(id=f'p{num}', file=files[num], level=lv, x=wx, z=wz,
-                       heading=hdg, caption=cap, group=files[num].split('/')[0]))
+                       heading=hdg, caption=cap, group=files[num].split('/')[0], dy=dy_at(lv, x, y)))
 missing = set(files) - {p[0] for p in PHOTOS}
 dup = len(PHOTOS) - len({p[0] for p in PHOTOS})
 print('photos placed', len(photos), 'missing', sorted(missing), 'dup', dup)
@@ -188,7 +198,7 @@ for r in rooms:
     r.pop('rect_px')
 data = dict(levels=[dict(level=k, name=v) for k, v in LEVEL_NAMES.items()],
             rooms=rooms, corridors=corridors,
-            nodes=[dict(id=n['id'], level=n['level'], x=n['x'], z=n['z'], kind=n['kind'], label=n['label']) for n in node_list],
+            nodes=[dict(id=n['id'], level=n['level'], x=n['x'], z=n['z'], dy=dy_at(n['level'], *n['px']), kind=n['kind'], label=n['label']) for n in node_list],
             edges=edges, exits=exits, photos=photos)
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, '..', 'data', 'building.json')
 json.dump(data, open(out, 'w'), ensure_ascii=False, separators=(',', ':'))
