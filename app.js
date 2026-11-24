@@ -26,7 +26,7 @@ const norm = (s) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').rep
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const angDiff = (a, b) => ((a - b + 540) % 360) - 180;
 const lerp = (a, b, t) => a + (b - a) * t;
-const DY = (o) => (o.dy || 0) * FLOOR_H; // negyed emeletnyi szintkülönbség (L-szárny)
+const DY = (o) => (o.dy || 0) * FLOOR_H * 1.6; // negyed emeletnyi szintkülönbség (L-szárny), a térképen kicsit eltúlozva, hogy látsszon
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 const S = {
@@ -167,21 +167,24 @@ for (const lv of LEVELS) {
   const tMat = mk(new THREE.MeshStandardMaterial({ map: stripes, roughness: 0.9 }));
   const roomPolys = D.rooms.filter((r) => r.level === lv).map((r) => r.poly);
   const corrs = D.corridors.filter((c) => c.level === lv);
+  const plinthMat = mk(new THREE.MeshStandardMaterial({ color: 0xb9b2a3, roughness: 1 }));
   for (const c of corrs) {
-    const g = new THREE.ExtrudeGeometry(shapeFrom(c.poly), { depth: 0.35, bevelEnabled: false });
-    g.rotateX(-Math.PI / 2); g.translate(0, -0.35, 0);
-    const m = new THREE.Mesh(g, [c.restricted ? tMat : slabMat, edgeMat]);
+    const raise = Math.max(0, DY(c));
+    const g = new THREE.ExtrudeGeometry(shapeFrom(c.poly), { depth: 0.35 + raise, bevelEnabled: false });
+    g.rotateX(-Math.PI / 2); g.translate(0, -0.35 - raise, 0);
+    const m = new THREE.Mesh(g, [c.restricted ? tMat : slabMat, raise ? plinthMat : edgeMat]);
     m.position.y = DY(c);
     m.receiveShadow = true;
     grp.add(m);
   }
   // room floors
   for (const r of D.rooms.filter((x) => x.level === lv)) {
-    const g = new THREE.ExtrudeGeometry(shapeFrom(r.poly), { depth: 0.35, bevelEnabled: false });
-    g.rotateX(-Math.PI / 2); g.translate(0, -0.33, 0);
+    const rr = Math.max(0, DY(r));
+    const g = new THREE.ExtrudeGeometry(shapeFrom(r.poly), { depth: 0.35 + rr, bevelEnabled: false });
+    g.rotateX(-Math.PI / 2); g.translate(0, -0.33 - rr, 0);
     const col = new THREE.Color(TYPE[r.type][0]);
     const mat = mk(new THREE.MeshStandardMaterial({ color: col, roughness: 0.85 }));
-    const m = new THREE.Mesh(g, [mat, edgeMat]);
+    const m = new THREE.Mesh(g, [mat, rr ? plinthMat : edgeMat]);
     m.receiveShadow = true;
     m.userData = { room: r, base: col.clone() };
     r.mesh = m;
@@ -228,8 +231,45 @@ for (const lv of LEVELS) {
   S.levelAlpha[lv] = S.alphaTarget[lv] = 1;
 }
 
-// teacher corridor + exits tags
+// split-level transitions: small flights of steps + a tag on the offset wing
+{
+  const matsFor = {};
+  const getMats = (lv) => matsFor[lv] ||= (() => {
+    const m = [new THREE.MeshStandardMaterial({ color: 0xf2d21b, roughness: 0.8, transparent: true }), new THREE.MeshStandardMaterial({ color: 0x9c8a1e, roughness: 0.9, transparent: true })];
+    levelGroups[lv].userData.mats.push(...m); return m;
+  })();
+  for (const e of D.edges) {
+    if (e.kind !== 'walk') continue;
+    let a = D.nodes[e.a], b = D.nodes[e.b];
+    if ((a.dy || 0) === (b.dy || 0)) continue;
+    if ((a.dy || 0) > (b.dy || 0)) [a, b] = [b, a]; // a = lower end
+    const n = 7, dx = (b.x - a.x) / n, dz = (b.z - a.z) / n, h = (DY(b) - DY(a)) / n;
+    const len = Math.hypot(b.x - a.x, b.z - a.z) / n, ang = Math.atan2(b.x - a.x, b.z - a.z);
+    const grp = levelGroups[a.level];
+    const [stepMat, riserMat] = getMats(a.level);
+    for (let i = 0; i < n; i++) {
+      const top = DY(a) + h * (i + 1), bottom = Math.min(DY(a), DY(b), 0) - 0.35;
+      const box = new THREE.Mesh(new THREE.BoxGeometry(2.2, top - bottom, len * 1.02), [riserMat, riserMat, stepMat, riserMat, riserMat, riserMat]);
+      box.position.set(a.x + dx * (i + 0.5), (top + bottom) / 2, a.z + dz * (i + 0.5));
+      box.rotation.y = ang;
+      box.castShadow = box.receiveShadow = true;
+      grp.add(box);
+    }
+  }
+}
 const extraTags = [];
+for (const lv of LEVELS) {
+  const c = D.corridors.find((x) => x.level === lv && x.dy);
+  if (!c) continue;
+  const el = document.createElement('div'); el.className = 'tag split';
+  el.textContent = c.dy > 0 ? '▲ L-szárny: negyed szinttel feljebb' : '▼ L-szárny: negyed szinttel lejjebb';
+  const o = new CSS2DObject(el);
+  const xs = c.poly.map((p) => p[0]), zs = c.poly.map((p) => p[1]);
+  o.position.set(Math.min(...xs) + 1.5, DY(c) + WALL_H + 1.2, (Math.min(...zs) + Math.max(...zs)) / 2);
+  o.userData = { level: lv };
+  levelGroups[lv].add(o); extraTags.push(o);
+}
+// teacher corridor + exits tags
 {
   const t = D.corridors.find((c) => c.restricted);
   const el = document.createElement('div'); el.className = 'tag teacher'; el.textContent = 'Tanári folyosó – diákoknak csak ügyintézéshez';
@@ -580,6 +620,24 @@ function setupSearch(input, box, which) {
     else if (e.key === 'Escape') input.blur();
   });
   box.addEventListener('mousedown', (e) => { const b = e.target.closest('button[data-i]'); if (b) { e.preventDefault(); choose(list[+b.dataset.i]); input.blur(); } });
+}
+// mobile: while typing, the panel jumps to the top so the on-screen keyboard can't cover it
+{
+  const mq = matchMedia('(max-width: 720px)');
+  const setVvh = () => document.documentElement.style.setProperty('--vvh', `${(window.visualViewport ? visualViewport.height : innerHeight)}px`);
+  setVvh();
+  if (window.visualViewport) { visualViewport.addEventListener('resize', setVvh); visualViewport.addEventListener('scroll', () => window.scrollTo(0, 0)); }
+  let blurT = null;
+  for (const id of ['fromInput', 'toInput']) {
+    $(id).addEventListener('focus', () => {
+      clearTimeout(blurT);
+      if (!mq.matches) return;
+      document.body.classList.add('searching');
+      $('panel').scrollTop = 0;
+      setTimeout(() => window.scrollTo(0, 0), 50);
+    });
+    $(id).addEventListener('blur', () => { blurT = setTimeout(() => document.body.classList.remove('searching'), 200); });
+  }
 }
 setupSearch($('fromInput'), $('fromSugg'), 'from');
 setupSearch($('toInput'), $('toSugg'), 'to');

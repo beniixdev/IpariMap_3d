@@ -107,6 +107,7 @@ button{cursor:pointer}
 .tag{font:700 12px 'Barlow Condensed',Arial Narrow,sans-serif;padding:3px 8px;border-radius:999px;color:#fff;background:var(--char);white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .tag.teacher{background:var(--red)}
 .tag.exit{background:#1e8e3e}
+.tag.split{background:#f7dd0f;color:#2b2a29;font-size:13px}
 .tag.pin{background:var(--red);font-size:14px}
 .tag.pin.start{background:#1e8e3e}
 .tag.lvl{background:rgba(43,42,41,.82);font-size:14px}
@@ -161,5 +162,13 @@ button{cursor:pointer}
   .role button{padding:7px 11px;font-size:14px}
   .role .long{display:none}
   .help-btn{width:34px;height:34px}
+}
+/* mobile search mode: panel on top, above the keyboard */
+@media (max-width:720px){
+  body.searching .panel{top:56px;bottom:auto;max-height:calc(var(--vvh,100vh) - 56px);border-radius:0 0 16px 16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  body.searching .panel .quick,body.searching .panel .result,body.searching .panel .foot,body.searching .panel .credit,body.searching .panel .ph{display:none}
+  body.searching .field{flex-wrap:wrap}
+  body.searching .sugg{position:static;flex-basis:100%;margin:0 -10px 8px;max-height:none;box-shadow:none;border-top:1px solid var(--line);border-radius:0 0 10px 10px}
+  body.searching .floors,body.searching .tools,body.searching .card{display:none}
 }
 @media (prefers-reduced-motion:reduce){.sv,.sv-img,.lbl{transition:none!important}}
