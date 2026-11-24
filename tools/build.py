@@ -3,7 +3,7 @@ Run: python3 build.py   (needs numpy + opencv-python)"""
 import json, os, glob, math, sys
 import numpy as np, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from rooms import ROOMS, CORRIDORS, CORRIDOR_RECTS, LINES, STAIRS, EXITS
+from rooms import ROOMS, CORRIDORS, CORRIDOR_RECTS, CORRIDOR_POLYS, LINES, STAIRS, EXITS
 from photos import PHOTOS
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -86,6 +86,8 @@ for lv, comps, restricted in CORRIDORS:
         corridors.append(dict(level=lv, poly=wpoly(lv, p), restricted=restricted))
 for lv, r, restricted in CORRIDOR_RECTS:
     corridors.append(dict(level=lv, poly=wpoly(lv, rect_poly(r)), restricted=restricted))
+for lv, pts, restricted in CORRIDOR_POLYS:
+    corridors.append(dict(level=lv, poly=wpoly(lv, pts), restricted=restricted))
 
 # ---------- graph ----------
 nodes = {}   # key -> dict

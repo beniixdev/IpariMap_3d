@@ -45,7 +45,7 @@ python3 tools/build.py
 
 - Az alaprajzok sematikusak, és a szintek rajzai nem pontosan fedik egymást; a szinteket a lépcsőházaknál illesztettük össze, így a modell arányai közelítők.
 - A fotók helyét és irányát a képek tartalma (ajtótáblák, lépcsők, ablakok) alapján becsültük – ha valamelyik rossz helyen van, a `tools/photos.py`-ban egy sor átírásával javítható.
-- Az **I‑szárny tetőtere** (I202–I204) nincs rajta az alaprajzokon, az elrendezése a fotók és az `i_szarny/script.js` alapján becsült.
+- Az **I‑szárny tetőtere** (I202–I204, tanári, női és férfi WC, lépcső) nincs rajta az alaprajzokon; az elrendezése egy kézi vázlat alapján készült, a három tanterem mérete becsült.
 - A „t.sz.” rövidítést az alaprajzról vettük át változtatás nélkül.
 
 A Three.js (MIT licenc) a `vendor/` mappában van, így a térkép CDN nélkül is fut.

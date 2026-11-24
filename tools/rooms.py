@@ -174,13 +174,16 @@ ROOMS = [
  (2,'H204','Szaktanterem','class',[60],{}),
  (2,'H-szárny lépcső','','stair',(2216,260,2354,316),{}),
 
- # ---------------- I-szárny tetőtér (level 3, estimated, f2 coords) ----------------
- (3,'I202','Tanterem (tetőtér)','class',(1399,262,1520,372),{}),
- (3,'I203','Tanterem (tetőtér)','class',(1399,380,1520,500),{}),
- (3,'I204','Tanterem (tetőtér)','class',(1399,508,1520,600),{}),
- (3,'Tanári (I-szárny)','','office',(1399,608,1520,722),{}),
- (3,'Férfi WC (tetőtér)','','wc',(1560,540,1592,612),{}),
- (3,'I-szárny lépcső','','stair',(1554,615,1592,722),{}),
+ # ---------------- I-szárny tetőtér (level 3, f2 coords) ----------------
+ # Nincs rajta az alaprajzokon: kézi vázlat alapján (észak = fent), az I-szárny alapterületére illesztve.
+ # A három tanterem mérete becsült, a többi helyiség aránya a vázlatot követi.
+ (3,'I202','Tanterem (tetőtér)','class',(1399,262,1503,338),{}),
+ (3,'I203','Tanterem (tetőtér)','class',(1399,338,1503,414),{}),
+ (3,'I204','Tanterem (tetőtér)','class',(1399,414,1503,491),{}),
+ (3,'Tanári (I-szárny)','','office',(1399,493,1439,607),{}),
+ (3,'Női WC','I-szárny tetőtér','wc',(1439,614,1467,698),{}),
+ (3,'Férfi WC','I-szárny tetőtér','wc',(1467,614,1512,705),{}),
+ (3,'I-szárny lépcső','','stair',(1549,575,1591,672),{}),
 ]
 
 # corridor regions (component ids) -> polygon floors; restricted = teacher corridor
@@ -191,8 +194,11 @@ CORRIDORS = [
  (2,[41],False),(2,[42],False),(2,[105],False),
 ]
 # rect corridors (manual)
+# polygon corridors (manual, plan pixels)
+CORRIDOR_POLYS = [
+ (3,[(1503,277),(1580,277),(1580,497),(1549,497),(1549,672),(1591,672),(1591,722),(1512,722),(1512,604),(1439,604),(1439,493),(1503,493)],False),
+]
 CORRIDOR_RECTS = [
- (3,(1524,262,1556,722),False),
  (0,(1505,370,1566,505),False),
  (0,(1418,350,1452,408),False),
 ]
@@ -230,7 +236,8 @@ LINES = [
  (2,'L-szárny lépcső',[(846,228),(846,160)],False),
  (2,'I-szárny lépcsőház',[(1470,680),(1530,680),(1572,670)],False),
  (2,'H-szárny (2. em.)',[(2030,288),(2285,288),(2410,288)],False),
- (3,'I-szárny tetőtér',[(1572,670),(1540,690),(1540,280)],False),
+ (3,'I-szárny tetőtér',[(1570,697),(1530,697),(1530,550),(1540,490),(1540,285)],False),
+ (3,'I-szárny tetőtér',[(1530,550),(1465,550)],False),
 ]
 
 STAIRS = [
@@ -242,7 +249,7 @@ STAIRS = [
  ((1,(2515,955)),(2,(2405,945)),'Keleti csigalépcső'),
  ((1,(2340,125)),(2,(2285,288)),'H-szárny lépcső'),
  ((1,(1900,780)),(2,(1572,670)),'I-szárny lépcső'),
- ((2,(1572,670)),(3,(1572,670)),'I-szárny lépcső (tetőtér)'),
+ ((2,(1572,670)),(3,(1570,697)),'I-szárny lépcső (tetőtér)'),
 ]
 
 EXITS = [
