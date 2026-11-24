@@ -107,7 +107,6 @@ button{cursor:pointer}
 .tag{font:700 12px 'Barlow Condensed',Arial Narrow,sans-serif;padding:3px 8px;border-radius:999px;color:#fff;background:var(--char);white-space:nowrap;pointer-events:none;box-shadow:0 1px 3px rgba(0,0,0,.25)}
 .tag.teacher{background:var(--red)}
 .tag.exit{background:#1e8e3e}
-.tag.split{background:#f7dd0f;color:#2b2a29;font-size:13px}
 .tag.pin{background:var(--red);font-size:14px}
 .tag.pin.start{background:#1e8e3e}
 .tag.lvl{background:rgba(43,42,41,.82);font-size:14px}

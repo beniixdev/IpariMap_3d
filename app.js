@@ -27,7 +27,8 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const angDiff = (a, b) => ((a - b + 540) % 360) - 180;
 const lerp = (a, b, t) => a + (b - a) * t;
 // L-szárny szintkülönbsége; a negyed emeletnyit a térképen kicsit eltúlozzuk, hogy látsszon
-const DY = (o) => (o.dy || 0) * FLOOR_H * (Math.abs(o.dy || 0) < 0.5 ? 1.6 : 1);
+const H = (dy) => Math.sign(dy) * (Math.abs(dy) <= 0.25 ? Math.abs(dy) * FLOOR_H * 1.6 : Math.abs(dy) * FLOOR_H + 0.25 * FLOOR_H * 0.6);
+const DY = (o) => H(o.dy || 0);
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 const S = {
@@ -48,7 +49,13 @@ const LEVELS = D.levels.map((l) => l.level);
 const levelName = (lv) => D.levels.find((l) => l.level === lv).name;
 
 // ------------------------------------------------------------ derived data
+const insetRect = (poly, d) => {
+  const xs = poly.map((p) => p[0]), zs = poly.map((p) => p[1]);
+  const x0 = Math.min(...xs) + d, x1 = Math.max(...xs) - d, z0 = Math.min(...zs) + d, z1 = Math.max(...zs) - d;
+  return [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
+};
 for (const r of D.rooms) {
+  r.ipoly = insetRect(r.poly, 0.1);
   r.cx = r.poly.reduce((s, p) => s + p[0], 0) / r.poly.length;
   r.cz = r.poly.reduce((s, p) => s + p[1], 0) / r.poly.length;
   r.area = Math.abs(r.poly.reduce((s, p, i) => { const q = r.poly[(i + 1) % r.poly.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0) / 2);
@@ -181,7 +188,7 @@ for (const lv of LEVELS) {
   // room floors
   for (const r of D.rooms.filter((x) => x.level === lv)) {
     const rr = Math.max(0, DY(r));
-    const g = new THREE.ExtrudeGeometry(shapeFrom(r.poly), { depth: 0.35 + rr, bevelEnabled: false });
+    const g = new THREE.ExtrudeGeometry(shapeFrom(r.ipoly), { depth: 0.35 + rr, bevelEnabled: false });
     g.rotateX(-Math.PI / 2); g.translate(0, -0.33 - rr, 0);
     const col = new THREE.Color(TYPE[r.type][0]);
     const mat = mk(new THREE.MeshStandardMaterial({ color: col, roughness: 0.85 }));
@@ -210,7 +217,7 @@ for (const lv of LEVELS) {
   const lineMat = mk(new THREE.LineBasicMaterial({ color: 0x55514a }));
   const items = [...D.rooms.filter((r) => r.level === lv), ...corrs];
   for (const dy of [...new Set(items.map((o) => o.dy || 0))]) {
-    const [wg, lg] = wallGeometry(items.filter((o) => (o.dy || 0) === dy).map((o) => o.poly), WALL_H);
+    const [wg, lg] = wallGeometry(items.filter((o) => (o.dy || 0) === dy && o.name !== 'Főlépcső').map((o) => o.ipoly || o.poly), WALL_H);
     const walls = new THREE.Mesh(wg, wallMat);
     walls.castShadow = true; walls.receiveShadow = true;
     const lines = new THREE.LineSegments(lg, lineMat);
@@ -232,43 +239,38 @@ for (const lv of LEVELS) {
   S.levelAlpha[lv] = S.alphaTarget[lv] = 1;
 }
 
-// split-level transitions: small flights of steps + a tag on the offset wing
+const extraTags = [];
+// main staircase: rectangular flights with 90° turns, as hatched on the plans
 {
-  const matsFor = {};
-  const getMats = (lv) => matsFor[lv] ||= (() => {
-    const m = [new THREE.MeshStandardMaterial({ color: 0xf2d21b, roughness: 0.8, transparent: true }), new THREE.MeshStandardMaterial({ color: 0x9c8a1e, roughness: 0.9, transparent: true })];
+  const mats = {};
+  const getMats = (lv) => mats[lv] ||= (() => {
+    const m = [new THREE.MeshStandardMaterial({ color: 0xf4d81c, roughness: 0.75, transparent: true }), new THREE.MeshStandardMaterial({ color: 0xa8931c, roughness: 0.9, transparent: true })];
     levelGroups[lv].userData.mats.push(...m); return m;
   })();
-  for (const e of D.edges) {
-    if (e.kind !== 'walk') continue;
-    let a = D.nodes[e.a], b = D.nodes[e.b];
-    if ((a.dy || 0) === (b.dy || 0)) continue;
-    if ((a.dy || 0) > (b.dy || 0)) [a, b] = [b, a]; // a = lower end
-    const n = 7, dx = (b.x - a.x) / n, dz = (b.z - a.z) / n, h = (DY(b) - DY(a)) / n;
-    const len = Math.hypot(b.x - a.x, b.z - a.z) / n, ang = Math.atan2(b.x - a.x, b.z - a.z);
-    const grp = levelGroups[a.level];
-    const [stepMat, riserMat] = getMats(a.level);
+  const rectOf = (poly) => { const xs = poly.map((p) => p[0]), zs = poly.map((p) => p[1]); return [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)]; };
+  const box = (lv, x0, z0, x1, z1, top, bottom) => {
+    const [tread, riser] = getMats(lv);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, top - bottom, z1 - z0), [riser, riser, tread, riser, riser, riser]);
+    m.position.set((x0 + x1) / 2, (top + bottom) / 2, (z0 + z1) / 2);
+    m.castShadow = m.receiveShadow = true;
+    levelGroups[lv].add(m);
+  };
+  for (const f of D.flights || []) {
+    const [x0, z0, x1, z1] = rectOf(f.poly);
+    const h0 = H(f.dy0), h1 = H(f.dy1), bottom = Math.min(h0, h1, 0) - 0.35;
+    const along = f.dir === 'N' || f.dir === 'S' ? z1 - z0 : x1 - x0;
+    const n = Math.max(3, Math.round(along / 0.3));
     for (let i = 0; i < n; i++) {
-      const top = DY(a) + h * (i + 1), bottom = Math.min(DY(a), DY(b), 0) - 0.35;
-      const box = new THREE.Mesh(new THREE.BoxGeometry(2.2, top - bottom, len * 1.02), [riserMat, riserMat, stepMat, riserMat, riserMat, riserMat]);
-      box.position.set(a.x + dx * (i + 0.5), (top + bottom) / 2, a.z + dz * (i + 0.5));
-      box.rotation.y = ang;
-      box.castShadow = box.receiveShadow = true;
-      grp.add(box);
+      const top = h1 > h0 ? lerp(h0, h1, (i + 1) / n) : lerp(h0, h1, i / n);
+      // step i, counted from the start of the flight
+      const a0 = i / n, a1 = (i + 1) / n;
+      if (f.dir === 'N') box(f.level, x0, z1 - (z1 - z0) * a1, x1, z1 - (z1 - z0) * a0, top, bottom);
+      else if (f.dir === 'S') box(f.level, x0, z0 + (z1 - z0) * a0, x1, z0 + (z1 - z0) * a1, top, bottom);
+      else if (f.dir === 'W') box(f.level, x1 - (x1 - x0) * a1, z0, x1 - (x1 - x0) * a0, z1, top, bottom);
+      else box(f.level, x0 + (x1 - x0) * a0, z0, x0 + (x1 - x0) * a1, z1, top, bottom);
     }
   }
-}
-const extraTags = [];
-for (const lv of LEVELS) {
-  const c = D.corridors.find((x) => x.level === lv && x.dy);
-  if (!c) continue;
-  const el = document.createElement('div'); el.className = 'tag split';
-  el.textContent = lv === 1 ? '▲ L-szárny alsó szintje: fél szinttel a 2. emelet alatt' : '▲ L-szárny felső szintje: negyed szinttel a 2. emelet fölött';
-  const o = new CSS2DObject(el);
-  const xs = c.poly.map((p) => p[0]), zs = c.poly.map((p) => p[1]);
-  o.position.set(Math.min(...xs) + 1.5, DY(c) + WALL_H + 1.2, (Math.min(...zs) + Math.max(...zs)) / 2);
-  o.userData = { level: lv };
-  levelGroups[lv].add(o); extraTags.push(o);
+  for (const l of D.landings || []) { const [x0, z0, x1, z1] = rectOf(l.poly); box(l.level, x0, z0, x1, z1, H(l.dy), Math.min(H(l.dy), 0) - 0.35); }
 }
 // teacher corridor + exits tags
 {
@@ -468,7 +470,7 @@ function buildSteps(r) {
       steps.push({ text: `${g.dl > 0 ? 'Menj fel' : 'Menj le'} ${LEVEL_TO[to]}`, small: g.name, cls: 'stair', node: g.end });
       lastDir = null; continue;
     }
-    if (g.len < 1.5 && groups.length > 1) continue;
+    if (g.len < 3 && groups.length > 1) continue;
     const d = dirOf(g.first[0], g.first[1]);
     const verb = lastDir ? turnWord(lastDir, d) : steps.length > 1 ? 'Folytasd' : 'Indulj el';
     const amt = Math.abs(g.ddy) >= 0.5 ? 'fél' : 'negyed';

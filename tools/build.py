@@ -3,7 +3,7 @@ Run: python3 build.py   (needs numpy + opencv-python)"""
 import json, os, glob, math, sys
 import numpy as np, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from rooms import OFFSETS, ROOMS, CORRIDORS, CORRIDOR_RECTS, CORRIDOR_POLYS, LINES, STAIRS, EXITS
+from rooms import FLIGHTS, LANDINGS, OFFSETS, ROOMS, CORRIDORS, CORRIDOR_RECTS, CORRIDOR_POLYS, LINES, STAIRS, EXITS
 from photos import PHOTOS
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -112,6 +112,10 @@ def add_node(lv, x, y, kind='c', label=None):
     return nodes[k]['id']
 
 segments = []  # (lv, p0, p1, name, restricted)
+EXPLICIT_DY = {}
+LINES = [(lv, name, [(p[0], p[1]) for p in pts], restricted) for lv, name, pts, restricted in [
+    (lv, name, [(EXPLICIT_DY.__setitem__((lv, p[0], p[1]), p[2]) or p) if len(p) == 3 else p for p in pts], restricted)
+    for lv, name, pts, restricted in LINES]]
 for lv, name, pts, restricted in LINES:
     for a, b in zip(pts, pts[1:]):
         segments.append([lv, a, b, name, restricted, []])  # last = list of (t, roomindex)
@@ -196,9 +200,11 @@ print('photos placed', len(photos), 'missing', sorted(missing), 'dup', dup)
 for r in rooms:
     if 'node' not in r: print('NO NODE', r['name'])
     r.pop('rect_px')
-data = dict(levels=[dict(level=k, name=v) for k, v in LEVEL_NAMES.items()],
+flights = [dict(level=lv, poly=wpoly(lv, rect_poly(r)), dir=d, dy0=a0, dy1=a1) for lv, r, d, a0, a1 in FLIGHTS]
+landings = [dict(level=lv, poly=wpoly(lv, rect_poly(r)), dy=h) for lv, r, h in LANDINGS]
+data = dict(flights=flights, landings=landings, levels=[dict(level=k, name=v) for k, v in LEVEL_NAMES.items()],
             rooms=rooms, corridors=corridors,
-            nodes=[dict(id=n['id'], level=n['level'], x=n['x'], z=n['z'], dy=dy_at(n['level'], *n['px']), kind=n['kind'], label=n['label']) for n in node_list],
+            nodes=[dict(id=n['id'], level=n['level'], x=n['x'], z=n['z'], dy=EXPLICIT_DY.get((n['level'], *n['px']), dy_at(n['level'], *n['px'])), kind=n['kind'], label=n['label']) for n in node_list],
             edges=edges, exits=exits, photos=photos)
 out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, '..', 'data', 'building.json')
 json.dump(data, open(out, 'w'), ensure_ascii=False, separators=(',', ':'))
