@@ -52,7 +52,7 @@ for (const r of D.rooms) {
   r.cx = r.poly.reduce((s, p) => s + p[0], 0) / r.poly.length;
   r.cz = r.poly.reduce((s, p) => s + p[1], 0) / r.poly.length;
   r.area = Math.abs(r.poly.reduce((s, p, i) => { const q = r.poly[(i + 1) % r.poly.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0) / 2);
-  r.key = norm(`${r.name} ${r.sub} ${levelName(r.level)}`);
+  r.key = norm(`${r.name} ${r.sub} ${levelName(r.level)} ${r.keys || ''}`);
 }
 const nodeAdj = D.nodes.map(() => []);
 D.edges.forEach((e, i) => { nodeAdj[e.a].push(i); nodeAdj[e.b].push(i); });

@@ -88,7 +88,7 @@ for i, (lv, name, sub, typ, geom, extra) in enumerate(ROOMS):
     rooms.append(dict(id=f'r{i}', level=lv, name=name, sub=sub, type=typ, rect_px=rect,
                       poly=wpoly(lv, rect_poly(rect)), staff=bool(extra.get('staff')),
                       dy=dy_at(lv, (rect[0]+rect[2])/2, (rect[1]+rect[3])/2),
-                      estimated=(lv == 3)))
+                      estimated=(lv == 3), keys=extra.get('keys', '')))
 
 corridors = []
 for lv, comps, restricted in CORRIDORS:
