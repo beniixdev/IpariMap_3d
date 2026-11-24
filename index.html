@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="hu" data-photo-base="photos/">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ipari MAP – 3D navigáció</title>
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "./vendor/three.module.min.js",
+  "three/addons/": "./vendor/addons/"
+} }
+</script>
+</head>
+<body>
+<header class="top">
+  <img class="crest" src="assets/ipari_cimer.png" alt="Veszprémi SZC Ipari Technikum címere">
+  <div class="brand"><b>Ipari MAP</b><span>3D épületnavigáció</span></div>
+  <div class="role" role="radiogroup" aria-label="Ki vagy?">
+    <button id="roleDiak" class="on" role="radio" aria-checked="true">Diák</button>
+    <button id="roleTanar" role="radio" aria-checked="false">Tanár</button>
+  </div>
+</header>
+
+<main id="map">
+  <div id="loading">Épület betöltése…</div>
+</main>
+
+<aside class="panel" id="panel">
+  <div class="route-form">
+    <div class="field">
+      <span class="dot from"></span>
+      <input id="fromInput" autocomplete="off" placeholder="Honnan indulsz?" aria-label="Honnan">
+      <div class="sugg" id="fromSugg"></div>
+    </div>
+    <button class="swap" id="swapBtn" title="Csere" aria-label="Kiindulás és cél cseréje">⇅</button>
+    <div class="field">
+      <span class="dot to"></span>
+      <input id="toInput" autocomplete="off" placeholder="Hová mész? (pl. F218, titkárság, könyvtár)" aria-label="Hová">
+      <div class="sugg" id="toSugg"></div>
+    </div>
+  </div>
+  <div class="quick" id="quick"></div>
+  <div class="result" id="result" hidden>
+    <div class="sum" id="sum"></div>
+    <div class="notice" id="notice" hidden></div>
+    <div class="actions">
+      <button class="btn primary" id="walkBtn">Bejárás fotókkal</button>
+      <button class="btn" id="clearBtn">Törlés</button>
+    </div>
+    <ol class="steps" id="steps"></ol>
+  </div>
+  <p class="foot">A tanári folyosón (2. em., F221–F225) diákok csak ügyintézés céljából közlekedhetnek – a diák‑útvonal ezt figyelembe veszi.</p>
+</aside>
+
+<nav class="floors" id="floors" aria-label="Szintek"></nav>
+
+<div class="tools">
+  <label class="tg"><input type="checkbox" id="photoToggle" checked><span>Fotópontok</span></label>
+  <label class="tg slider"><span>Szétnyitás</span><input type="range" id="explode" min="1" max="3.2" step="0.1" value="2.2"></label>
+  <button class="btn small" id="resetView">Nézet alaphelyzetbe</button>
+</div>
+
+<div class="legend" id="legend"></div>
+<div class="hint">Húzás: forgatás · Jobb gomb / két ujj: mozgatás · Görgő: nagyítás · Kék pont: fotó (utcakép)</div>
+
+<div class="card" id="card" hidden></div>
+<div class="tip" id="tip" hidden></div>
+
+<section class="sv" id="sv" hidden aria-label="Utcakép nézet">
+  <div class="sv-stage" id="svStage">
+    <img class="sv-img" id="svA" alt="">
+    <img class="sv-img" id="svB" alt="">
+  </div>
+  <div class="sv-floor" id="svFloor"></div>
+  <button class="sv-turn left" id="svTurnL" hidden>↶</button>
+  <button class="sv-turn right" id="svTurnR" hidden>↷</button>
+  <div class="sv-top">
+    <button class="btn back" id="svBack">← Vissza a 3D térképre</button>
+    <div class="sv-cap"><b id="svCap"></b><span id="svSub"></span></div>
+  </div>
+  <div class="sv-route" id="svRoute" hidden>
+    <button class="btn" id="svPrev">◀ Előző</button>
+    <div class="sv-prog"><span id="svStep"></span><i id="svBar"></i></div>
+    <button class="btn primary" id="svNext">Következő ▶</button>
+  </div>
+  <canvas class="sv-mini" id="svMini" width="440" height="320" title="Kattints egy pontra az ugráshoz"></canvas>
+  <div class="sv-keys">↑ előre · ↓ hátra · ← → fordulás · Esc kilépés · húzással körbenézhetsz</div>
+</section>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
