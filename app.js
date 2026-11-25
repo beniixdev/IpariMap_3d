@@ -175,7 +175,9 @@ for (const lv of LEVELS) {
   const tMat = mk(new THREE.MeshStandardMaterial({ map: stripes, roughness: 0.9 }));
   const roomPolys = D.rooms.filter((r) => r.level === lv).map((r) => r.poly);
   const corrs = D.corridors.filter((c) => c.level === lv);
-  const plinthMat = mk(new THREE.MeshStandardMaterial({ color: 0xb9b2a3, roughness: 1 }));
+  // the sides of slabs are pushed back in depth so walls standing in the same plane always win (no flicker)
+  const plinthMat = mk(new THREE.MeshStandardMaterial({ color: 0xb9b2a3, roughness: 1, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 4 }));
+  edgeMat.polygonOffset = true; edgeMat.polygonOffsetFactor = 2; edgeMat.polygonOffsetUnits = 4;
   for (const c of corrs) {
     const raise = Math.max(0, DY(c));
     const g = new THREE.ExtrudeGeometry(shapeFrom(c.poly), { depth: 0.35 + raise, bevelEnabled: false });

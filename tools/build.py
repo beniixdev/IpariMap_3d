@@ -135,7 +135,9 @@ def seg_rect_dist(seg, rect):
 
 for ri, r in enumerate(rooms):
     lv = r['level']
-    cands = [(seg_rect_dist(s, r['rect_px']), si) for si, s in enumerate(segments) if s[0] == lv]
+    # a tanári folyosóra csak az irodák, tanári mosdók/raktár nyílnak; a tantermek nem
+    cands = [(seg_rect_dist(s, r['rect_px']), si) for si, s in enumerate(segments)
+             if s[0] == lv and (not s[4] or r['type'] in ('office', 'wc', 'storage'))]
     (d, t), si = min(cands, key=lambda c: (round(c[0][0], 1), c[1]))
     s = segments[si]
     # door point: projection of the room centre onto the segment, clamped to the part facing the room
