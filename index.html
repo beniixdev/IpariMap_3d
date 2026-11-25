@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hu" data-photo-base="photos/">
+<html lang="hu" data-photo-base="photos/" data-version="dd592f7150">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,21 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=dd592f7150">
+<script>
+// Új verzió ellenőrzése: ha a szerveren frissebb verzió van, mint amit a böngésző a gyorsítótárból betöltött,
+// az oldal egyszer újratölt egy új címmel (?v=...), így minden fájl frissen jön le.
+(function () {
+  var cur = document.documentElement.dataset.version;
+  fetch('version.json?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+    if (!j || !j.v || j.v === cur) return;
+    var u = new URL(location.href);
+    if (u.searchParams.get('v') === j.v) return;
+    u.searchParams.set('v', j.v);
+    location.replace(u.toString());
+  }).catch(function () {});
+})();
+</script>
 <script type="importmap">
 { "imports": {
   "three": "./vendor/three.module.min.js",
@@ -103,6 +117,6 @@
   </div>
 </div>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=dd592f7150"></script>
 </body>
 </html>

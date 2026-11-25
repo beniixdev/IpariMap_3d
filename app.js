@@ -39,7 +39,7 @@ const S = {
 
 let D; // building data
 try {
-  D = await (await fetch('data/building.json')).json();
+  D = await (await fetch('data/building.json?v=' + (document.documentElement.dataset.version || ''), { cache: 'no-cache' })).json();
 } catch (e) {
   $('loading').textContent = 'Nem sikerült betölteni az épületadatokat (data/building.json). Webszerverről nyisd meg az oldalt.';
   throw e;

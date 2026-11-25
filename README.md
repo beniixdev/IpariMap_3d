@@ -44,6 +44,8 @@ pip install numpy opencv-python
 python3 tools/build.py
 ```
 
+Feltöltés előtt futtasd le a `python3 tools/stamp.py` parancsot is. Ez új verziószámot ír az `index.html`-be és a `version.json`-ba, így a látogatók böngészője a gyorsítótárban lévő régi fájlok helyett magától az újat tölti be.
+
 **Fontos tudnivalók**
 
 - Az alaprajzok sematikusak, és a szintek rajzai nem pontosan fedik egymást; a szinteket a lépcsőházaknál illesztettük össze, így a modell arányai közelítők.
