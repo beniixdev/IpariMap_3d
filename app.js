@@ -274,6 +274,27 @@ const extraTags = [];
   }
   for (const l of D.landings || []) { const [x0, z0, x1, z1] = rectOf(l.poly); box(l.level, x0, z0, x1, z1, H(l.dy), Math.min(H(l.dy), 0) - 0.35); }
 }
+// doors from the plan: a small door leaf at each room's own door
+{
+  const leafGeo = new THREE.BoxGeometry(1, 1, 1);
+  for (const lv of LEVELS) {
+    const list = D.rooms.filter((r) => r.level === lv && r.door);
+    if (!list.length) continue;
+    const mat = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.7, transparent: true });
+    levelGroups[lv].userData.mats.push(mat);
+    const im = new THREE.InstancedMesh(leafGeo, mat, list.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
+    list.forEach((r, i) => {
+      const d = r.door, dx = d.tx - d.x, dz = d.tz - d.z, len = Math.max(0.7, Math.min(1.2, Math.hypot(dx, dz)));
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(-dz, dx));
+      const dyv = DY(D.nodes[r.node] || r);
+      m4.compose(new THREE.Vector3(d.x + (dx / Math.hypot(dx, dz)) * len / 2, dyv + 0.55, d.z + (dz / Math.hypot(dx, dz)) * len / 2), q, new THREE.Vector3(len, 1.1, 0.08));
+      im.setMatrixAt(i, m4);
+    });
+    im.castShadow = true;
+    levelGroups[lv].add(im);
+  }
+}
 // teacher corridor + exits tags
 {
   const t = D.corridors.find((c) => c.restricted);
@@ -494,10 +515,11 @@ function buildSteps(r) {
     lastDir = dirOf(g.last[0], g.last[1]);
   }
   let side = '';
-  if (S.to.room && lastDir) {
-    const n = D.nodes[r.nodes[r.nodes.length - 1]];
-    const cross = lastDir[0] * (S.to.room.cz - n.z) - lastDir[1] * (S.to.room.cx - n.x);
-    side = cross > 0 ? 'az ajtó jobb kéz felől' : 'az ajtó bal kéz felől';
+  if (S.to.room && r.nodes.length >= 3) {
+    const N = r.nodes.length, door = D.nodes[r.nodes[N - 1]], front = D.nodes[r.nodes[N - 2]], before = D.nodes[r.nodes[N - 3]];
+    const dir = dirOf(before, front), tx = S.to.room.door ? door.x : S.to.room.cx, tz = S.to.room.door ? door.z : S.to.room.cz;
+    const cross = dir[0] * (tz - front.z) - dir[1] * (tx - front.x);
+    if (Math.hypot(tx - front.x, tz - front.z) > 0.2) side = cross > 0 ? 'az ajtó jobb kéz felől' : 'az ajtó bal kéz felől';
   }
   steps.push({ text: `Megérkeztél: ${S.to.name}`, small: [S.to.room && S.to.room.sub, side].filter(Boolean).join(' · '), cls: 'end', node: r.nodes[r.nodes.length - 1] });
   return steps;
@@ -515,8 +537,10 @@ let routeCurve = null, chevrons = null, pinStart = null, pinEnd = null;
 function routePoints() {
   return S.route.nodes.map((ni) => { const n = D.nodes[ni]; return new THREE.Vector3(n.x, S.levelY[n.level] + DY(n) + 0.45, n.z); });
 }
-function makePin(cls, text) {
-  const el = document.createElement('div'); el.className = 'tag pin ' + cls; el.textContent = text;
+const DOOR_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 21V4a1 1 0 0 1 1-1h9l3 2v16" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 21h18" stroke="currentColor" stroke-width="2"/><circle cx="12.5" cy="12.5" r="1.3" fill="currentColor"/></svg>';
+function makePin(cls, text, door) {
+  const el = document.createElement('div'); el.className = 'tag pin ' + cls;
+  if (door) { el.innerHTML = DOOR_SVG; el.append(' ' + text); } else el.textContent = text;
   const o = new CSS2DObject(el); o.center.set(0.5, 1.4); return o;
 }
 function drawRoute() {
@@ -540,7 +564,7 @@ function drawRoute() {
   chevrons.userData.L = L; chevrons.renderOrder = 11;
   routeGroup.add(chevrons);
   pinStart = makePin('start', 'Indulás'); pinStart.position.copy(pts[0]);
-  pinEnd = makePin('', S.to.room && S.to.room.sub ? `${S.to.name} · ${S.to.room.sub}` : S.to.name); pinEnd.position.copy(pts[pts.length - 1]);
+  pinEnd = makePin('', S.to.room && S.to.room.sub ? `${S.to.name} · ${S.to.room.sub}` : S.to.name, !!(S.to.room && S.to.room.door)); pinEnd.position.copy(pts[pts.length - 1]);
   routeGroup.add(pinStart, pinEnd);
   const startBall = new THREE.Mesh(new THREE.SphereGeometry(0.6, 20, 12), new THREE.MeshBasicMaterial({ color: 0x1e8e3e }));
   startBall.position.copy(pts[0]); routeGroup.add(startBall);

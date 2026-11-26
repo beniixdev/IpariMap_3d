@@ -54,6 +54,53 @@ def to_world(level, x, y):
 
 labs = {fl: segment(os.path.join(HERE, 'alaprajz', fn)) for fl, fn in PLAN_FILES.items()}
 
+def detect_doors(path):
+    """Ajtójelek: a falból kiálló rövid ferde vonalak. A vízszintes/függőleges falakat kivonjuk,
+    a maradék vékony, ferde, falhoz csatlakozó vonalak az ajtók. hinge = a falon lévő vég."""
+    im = cv2.imread(path, 0)
+    bw = (im < 140).astype(np.uint8)
+    horiz = cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((1, 25), np.uint8))
+    vert = cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((25, 1), np.uint8))
+    rest = bw & (1 - cv2.dilate(horiz | vert, np.ones((3, 3), np.uint8)))
+    wallnear = cv2.dilate(horiz | vert, np.ones((9, 9), np.uint8))
+    n, lab, st, _ = cv2.connectedComponentsWithStats(rest, 8)
+    out = []
+    for i in range(1, n):
+        if not 15 <= st[i, 4] <= 400:
+            continue
+        ys, xs = np.where(lab == i)
+        pts = np.stack([xs, ys], 1).astype(float)
+        c = pts.mean(0)
+        ev, evec = np.linalg.eigh(np.cov((pts - c).T))
+        major, minor = 4 * math.sqrt(max(ev[1], 1e-6)), 4 * math.sqrt(max(ev[0], 1e-6))
+        d = evec[:, 1]
+        a = abs(math.degrees(math.atan2(d[1], d[0]))) % 180
+        a = min(a, 180 - a)
+        if not (10 <= major <= 48 and minor <= 7 and 12 <= a <= 78 and major / max(minor, 1) > 3):
+            continue
+        proj = (pts - c) @ d
+        e1, e2 = c + d * proj.min(), c + d * proj.max()
+        near = [wallnear[min(int(round(e[1])), im.shape[0]-1), min(int(round(e[0])), im.shape[1]-1)] for e in (e1, e2)]
+        if not any(near):
+            continue
+        hinge, tip = (e1, e2) if near[0] and not near[1] else (e2, e1) if near[1] and not near[0] else (e1, e2)
+        out.append((float(hinge[0]), float(hinge[1]), float(tip[0]), float(tip[1])))
+    return out
+
+DOORS = {fl: detect_doors(os.path.join(HERE, 'alaprajz', fn)) for fl, fn in PLAN_FILES.items()}
+
+def pt_rect_edge_dist(x, y, r):
+    x0, y0, x1, y1 = r
+    if x0 <= x <= x1 and y0 <= y <= y1:
+        return min(x - x0, x1 - x, y - y0, y1 - y)
+    return math.hypot(max(x0 - x, 0, x - x1), max(y0 - y, 0, y - y1))
+
+def pt_seg(x, y, a, b):
+    (ax, ay), (bx, by) = a, b
+    L2 = (bx-ax)**2 + (by-ay)**2
+    t = min(max(((x-ax)*(bx-ax) + (y-ay)*(by-ay)) / L2, 0), 1) if L2 else 0
+    return math.hypot(ax + (bx-ax)*t - x, ay + (by-ay)*t - y), t
+
 def comp_bbox(level, comps):
     lab = labs[LEVEL_PLAN[level]]
     m = np.isin(lab, comps)
@@ -161,15 +208,38 @@ for ri, r in enumerate(rooms):
     x0, y0, x1, y1 = r['rect_px']
     if math.hypot(max(x0-px_, 0, px_-x1), max(y0-py_, 0, py_-y1)) > d + 25:
         tp = t
+    # the room's own door from the plan (on its wall, facing this corridor) -> the route ends there
+    r['door_px'] = None
+    if lv <= 2 and r['type'] != 'stair':
+        best = None
+        for hx, hy, tx, ty in DOORS[LEVEL_PLAN[lv]]:
+            if pt_rect_edge_dist(hx, hy, r['rect_px']) > 7:
+                continue
+            ds, t_ = pt_seg(hx, hy, s[1], s[2])
+            if ds > d + 40:
+                continue
+            if best is None or ds < best[0]:
+                best = (ds, t_, (hx, hy, tx, ty))
+        if best:
+            tp = best[1]
+            r['door_px'] = best[2]
     s[5].append((tp, ri))
     r['dist_px'] = round(d, 1)
 
 edges = []
+door_edges = []
 for lv, a, b, name, restricted, doors in segments:
     pts = [(0.0, a, None)] + [(t, (a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t), ri) for t, ri in sorted(doors)] + [(1.0, b, None)]
     ids = []
     for t, p, ri in pts:
-        if ri is not None:
+        if ri is not None and rooms[ri].get('door_px'):
+            nid = add_node(lv, p[0], p[1])  # a folyosón, az ajtó előtt
+            hx, hy = rooms[ri]['door_px'][:2]
+            did = add_node(lv, round(hx, 1), round(hy, 1), 'door')
+            rooms[ri]['node'] = did
+            if did != nid:
+                door_edges.append(dict(a=nid, b=did, name=name, restricted=restricted, kind='walk'))
+        elif ri is not None:
             nid = add_node(lv, p[0], p[1], 'door')
             rooms[ri]['node'] = nid
         else:
@@ -178,6 +248,8 @@ for lv, a, b, name, restricted, doors in segments:
     for u, v in zip(ids, ids[1:]):
         if u != v:
             edges.append(dict(a=u, b=v, name=name, restricted=restricted, kind='walk'))
+
+edges += door_edges
 
 # helyiségek, amelyek csak egy másik helyiségen át nyílnak
 for ri, (lv, name, sub, typ, geom, extra) in enumerate(ROOMS):
@@ -228,7 +300,12 @@ print('photos placed', len(photos), 'missing', sorted(missing), 'dup', dup)
 
 for r in rooms:
     if 'node' not in r: print('NO NODE', r['name'])
+    dp = r.pop('door_px', None)
+    if dp:
+        hx, hy = to_world(r['level'], dp[0], dp[1]); tx, ty = to_world(r['level'], dp[2], dp[3])
+        r['door'] = dict(x=hx, z=hy, tx=tx, tz=ty)
     r.pop('rect_px')
+print('doors detected', {k: len(v) for k, v in DOORS.items()}, 'rooms with door', sum(1 for r in rooms if r.get('door')), '/', sum(1 for r in rooms if r['level'] <= 2 and r['type'] != 'stair'))
 flights = [dict(level=lv, poly=wpoly(lv, rect_poly(r)), dir=d, dy0=a0, dy1=a1) for lv, r, d, a0, a1 in FLIGHTS]
 landings = [dict(level=lv, poly=wpoly(lv, rect_poly(r)), dy=h) for lv, r, h in LANDINGS]
 data = dict(transform=dict(px_per_m=PX_PER_M, center=CENTER, levels=TRANSFORM, offsets=[dict(level=lv, rect=r, excl=ex, dy=d) for lv, r, ex, d in OFFSETS]), flights=flights, landings=landings, levels=[dict(level=k, name=v) for k, v in LEVEL_NAMES.items()],
