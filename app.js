@@ -925,6 +925,16 @@ function toPlan(level, wx, wz) {
   if (t.hshift && x > t.hshift.x) { const y2 = (Y - t.b - t.hshift.d) / t.a; if (y2 < t.hshift.y) y = y2; }
   return [Math.round(x), Math.round(y)];
 }
+// a hely magassága (L-szárny szintkülönbsége) – ugyanaz a szabály, mint a tools/build.py dy_at-ja
+function dyAt(level, wx, wz) {
+  const [x, y] = toPlan(level, wx, wz);
+  for (const o of TR.offsets || []) {
+    if (o.level !== level) continue;
+    const [x0, y0, x1, y1] = o.rect;
+    if (x >= x0 && x <= x1 && y >= y0 && y <= y1 && !o.excl.some(([a, b, c, d]) => x >= a && x <= c && y >= b && y <= d)) return o.dy;
+  }
+  return 0;
+}
 function isChanged(p) {
   const o = ED.orig.get(p.id);
   return Math.abs(o.x - p.x) > 0.01 || Math.abs(o.z - p.z) > 0.01 || o.level !== p.level || o.heading !== p.heading || o.caption !== p.caption;
@@ -940,7 +950,7 @@ function saveEdits() {
 function loadEdits() {
   let e = {};
   try { e = JSON.parse(lsGet(ED_KEY) || '{}') || {}; } catch (err) { e = {}; }
-  for (const p of D.photos) if (e[p.id]) { Object.assign(p, e[p.id]); if (p.level !== ED.orig.get(p.id).level) p.dy = 0; }
+  for (const p of D.photos) if (e[p.id]) { Object.assign(p, e[p.id]); p.dy = dyAt(p.level, p.x, p.z); }
   buildPhotoMarkers();
 }
 const selRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.25, 40), new THREE.MeshBasicMaterial({ color: 0xe11f26, transparent: true, depthTest: false }));
@@ -1026,6 +1036,7 @@ function groundPoint(ev, p) {
     const p = ED.drag.p, g = groundPoint(e, p);
     if (!g) return;
     p.x = +(g.x + ED.drag.dx).toFixed(3); p.z = +(g.z + ED.drag.dz).toFixed(3);
+    p.dy = dyAt(p.level, p.x, p.z);
     placeMarker(p); updateRing(); e.stopPropagation();
   }, true);
   host.addEventListener('pointerup', (e) => {
@@ -1045,7 +1056,7 @@ $('edCaption').addEventListener('input', (e) => { if (!ED.sel) return; ED.sel.ca
 $('edLevel').innerHTML = LEVELS.map((l) => `<option value="${l}">${esc(levelName(l))}</option>`).join('');
 $('edLevel').addEventListener('change', (e) => {
   const p = ED.sel; if (!p) return;
-  p.level = +e.target.value; p.dy = p.level === ED.orig.get(p.id).level ? ED.orig.get(p.id).dy : 0;
+  p.level = +e.target.value; p.dy = dyAt(p.level, p.x, p.z);
   buildPhotoMarkers(); saveEdits(); selectPhoto(p);
 });
 $('edView').addEventListener('click', () => { if (ED.sel) openStreet(ED.sel); });

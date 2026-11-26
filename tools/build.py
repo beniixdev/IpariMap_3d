@@ -212,7 +212,7 @@ for r in rooms:
     r.pop('rect_px')
 flights = [dict(level=lv, poly=wpoly(lv, rect_poly(r)), dir=d, dy0=a0, dy1=a1) for lv, r, d, a0, a1 in FLIGHTS]
 landings = [dict(level=lv, poly=wpoly(lv, rect_poly(r)), dy=h) for lv, r, h in LANDINGS]
-data = dict(transform=dict(px_per_m=PX_PER_M, center=CENTER, levels=TRANSFORM), flights=flights, landings=landings, levels=[dict(level=k, name=v) for k, v in LEVEL_NAMES.items()],
+data = dict(transform=dict(px_per_m=PX_PER_M, center=CENTER, levels=TRANSFORM, offsets=[dict(level=lv, rect=r, excl=ex, dy=d) for lv, r, ex, d in OFFSETS]), flights=flights, landings=landings, levels=[dict(level=k, name=v) for k, v in LEVEL_NAMES.items()],
             rooms=rooms, corridors=corridors,
             nodes=[dict(id=n['id'], level=n['level'], x=n['x'], z=n['z'], dy=EXPLICIT_DY.get((n['level'], *n['px']), dy_at(n['level'], *n['px'])), kind=n['kind'], label=n['label']) for n in node_list],
             edges=edges, exits=exits, photos=photos)
