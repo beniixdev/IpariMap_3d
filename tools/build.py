@@ -142,6 +142,8 @@ def seg_rect_dist(seg, rect):
     return best
 
 for ri, r in enumerate(rooms):
+    if ROOMS[ri][5].get('via'):  # csak egy másik helyiségen át érhető el (pl. szertár a tesiteremből)
+        continue
     lv = r['level']
     # a tanári folyosóra csak az irodák, tanári mosdók/raktár nyílnak; a tantermek nem
     cands = [(seg_rect_dist(s, r['rect_px']), si) for si, s in enumerate(segments)
@@ -176,6 +178,23 @@ for lv, a, b, name, restricted, doors in segments:
     for u, v in zip(ids, ids[1:]):
         if u != v:
             edges.append(dict(a=u, b=v, name=name, restricted=restricted, kind='walk'))
+
+# helyiségek, amelyek csak egy másik helyiségen át nyílnak
+for ri, (lv, name, sub, typ, geom, extra) in enumerate(ROOMS):
+    if not extra.get('via'):
+        continue
+    host_name, door = extra['via'][:2]
+    waypoints = extra['via'][2] if len(extra['via']) > 2 else []
+    host = next(h for h in rooms if h['name'] == host_name and h['level'] == lv)
+    label = f"{host['name']} – {host['sub']}" if host['sub'] else host['name']
+    prev = host['node']
+    for wx_, wy_ in waypoints:  # útvonal a helyiségen belül
+        w = add_node(lv, wx_, wy_)
+        edges.append(dict(a=prev, b=w, name=label, restricted=False, kind='walk')); prev = w
+    nid = add_node(lv, door[0], door[1], 'door')
+    rooms[ri]['node'] = nid
+    rooms[ri]['dist_px'] = 0
+    edges.append(dict(a=prev, b=nid, name=label, restricted=False, kind='walk'))
 
 for (la, pa), (lb, pb), name in STAIRS:
     u = add_node(la, *pa, kind='stair', label=name); v = add_node(lb, *pb, kind='stair', label=name)

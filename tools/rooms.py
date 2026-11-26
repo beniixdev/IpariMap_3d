@@ -38,7 +38,7 @@ ROOMS = [
 
  # ---------------- 1. emelet (level 1, f1.jpg) ----------------
  (1,'F109','Testnevelés terem','special',[135],{}),
- (1,'Szertár','','storage',[201],{}),
+ (1,'Szertár','Tesiszertár','storage',[201],{'via':('F109',(80,983),[(250,930),(110,945)]),'keys':'tesi testneveles szertar'}),
  (1,'F112','Osztályterem','class',[197],{}),
  (1,'F111','Kondi terem','special',[216],{}),
  (1,'F112/B','Osztályterem','class',[198],{}),
