@@ -144,17 +144,42 @@ function stripeTexture() {
 }
 const stripes = stripeTexture();
 
-function wallGeometry(polys, h) {
-  const pos = [], line = [];
+// walls as quads; where a door of the plan sits on a wall, that 1 m section gets the door colour
+const WALL_COL = new THREE.Color(0xffffff), DOOR_COL = new THREE.Color(0x9a6232);
+function wallGeometry(polys, h, doors = []) {
+  const pos = [], col = [], line = [];
+  const quad = (ax, az, bx, bz, c) => {
+    pos.push(ax, 0, az, bx, 0, bz, bx, h, bz, ax, 0, az, bx, h, bz, ax, h, az);
+    for (let i = 0; i < 6; i++) col.push(c.r, c.g, c.b);
+  };
   for (const poly of polys) {
     for (let i = 0; i < poly.length; i++) {
       const p = poly[i], q = poly[(i + 1) % poly.length];
-      pos.push(p[0], 0, p[1], q[0], 0, q[1], q[0], h, q[1], p[0], 0, p[1], q[0], h, q[1], p[0], h, p[1]);
+      const L = Math.hypot(q[0] - p[0], q[1] - p[1]);
       line.push(p[0], h, p[1], q[0], h, q[1]);
+      if (L < 1e-6) continue;
+      const ux = (q[0] - p[0]) / L, uz = (q[1] - p[1]) / L;
+      const iv = [];
+      for (const d of doors) {
+        if (Math.abs(ux * d.ux + uz * d.uz) < 0.9) continue; // only walls running along the door
+        const t = (d.x - p[0]) * ux + (d.z - p[1]) * uz, off = Math.abs((d.x - p[0]) * uz - (d.z - p[1]) * ux);
+        if (off < 0.45 && t > -0.3 && t < L + 0.3) iv.push([Math.max(0, t - d.w / 2), Math.min(L, t + d.w / 2)]);
+      }
+      iv.sort((a, b) => a[0] - b[0]);
+      let cur = 0;
+      for (const [a, b] of iv) {
+        if (b <= cur) continue;
+        if (a > cur) quad(p[0] + ux * cur, p[1] + uz * cur, p[0] + ux * a, p[1] + uz * a, WALL_COL);
+        const s0 = Math.max(a, cur);
+        quad(p[0] + ux * s0, p[1] + uz * s0, p[0] + ux * b, p[1] + uz * b, DOOR_COL);
+        cur = b;
+      }
+      if (cur < L) quad(p[0] + ux * cur, p[1] + uz * cur, q[0], q[1], WALL_COL);
     }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
   g.computeVertexNormals();
   const lg = new THREE.BufferGeometry();
   lg.setAttribute('position', new THREE.Float32BufferAttribute(line, 3));
@@ -215,11 +240,31 @@ for (const lv of LEVELS) {
     grp.add(o); labels.push(o);
   }
   // walls
-  const wallMat = mk(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, side: THREE.DoubleSide, opacity: 0.94 }));
+  const wallMat = mk(new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, roughness: 0.7, side: THREE.DoubleSide, opacity: 0.94 }));
+  // door opening: on the room wall nearest the plan's hinge, spanning the door leaf's projection on that wall
+  const lvDoors = D.rooms.filter((r) => r.level === lv && r.door).map((r) => {
+    const d = r.door; let best = null;
+    // the wall the door is on is the one facing the corridor point in front of the door
+    const e = D.edges.find((x) => x.kind === 'walk' && (x.a === r.node || x.b === r.node));
+    const front = e ? D.nodes[e.a === r.node ? e.b : e.a] : { x: d.x, z: d.z };
+    for (let i = 0; i < r.poly.length; i++) {
+      const p = r.poly[i], q = r.poly[(i + 1) % r.poly.length], L = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (L < 1e-6) continue;
+      const ux = (q[0] - p[0]) / L, uz = (q[1] - p[1]) / L;
+      const t = Math.max(0, Math.min(L, (front.x - p[0]) * ux + (front.z - p[1]) * uz));
+      const off = Math.hypot(p[0] + ux * t - front.x, p[1] + uz * t - front.z);
+      if (!best || off < best.off) best = { ux, uz, off, p };
+    }
+    // put the hinge onto that wall line
+    { const t = (d.x - best.p[0]) * best.ux + (d.z - best.p[1]) * best.uz; d.x = best.p[0] + best.ux * t; d.z = best.p[1] + best.uz * t; }
+    const proj = (d.tx - d.x) * best.ux + (d.tz - d.z) * best.uz, w = Math.max(0.8, Math.min(1.2, Math.abs(proj)));
+    const sgn = proj >= 0 ? 1 : -1;
+    return { x: d.x + best.ux * sgn * w / 2, z: d.z + best.uz * sgn * w / 2, ux: best.ux, uz: best.uz, w };
+  });
   const lineMat = mk(new THREE.LineBasicMaterial({ color: 0x55514a }));
   const items = [...D.rooms.filter((r) => r.level === lv), ...corrs];
   for (const dy of [...new Set(items.map((o) => o.dy || 0))]) {
-    const [wg, lg] = wallGeometry(items.filter((o) => (o.dy || 0) === dy && o.name !== 'Főlépcső').map((o) => o.ipoly || o.poly), WALL_H);
+    const [wg, lg] = wallGeometry(items.filter((o) => (o.dy || 0) === dy && o.name !== 'Főlépcső').map((o) => o.ipoly || o.poly), WALL_H, lvDoors);
     const walls = new THREE.Mesh(wg, wallMat);
     walls.castShadow = true; walls.receiveShadow = true;
     const lines = new THREE.LineSegments(lg, lineMat);
@@ -273,27 +318,6 @@ const extraTags = [];
     }
   }
   for (const l of D.landings || []) { const [x0, z0, x1, z1] = rectOf(l.poly); box(l.level, x0, z0, x1, z1, H(l.dy), Math.min(H(l.dy), 0) - 0.35); }
-}
-// doors from the plan: a small door leaf at each room's own door
-{
-  const leafGeo = new THREE.BoxGeometry(1, 1, 1);
-  for (const lv of LEVELS) {
-    const list = D.rooms.filter((r) => r.level === lv && r.door);
-    if (!list.length) continue;
-    const mat = new THREE.MeshStandardMaterial({ color: 0x8a5a2b, roughness: 0.7, transparent: true });
-    levelGroups[lv].userData.mats.push(mat);
-    const im = new THREE.InstancedMesh(leafGeo, mat, list.length);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
-    list.forEach((r, i) => {
-      const d = r.door, dx = d.tx - d.x, dz = d.tz - d.z, len = Math.max(0.7, Math.min(1.2, Math.hypot(dx, dz)));
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(-dz, dx));
-      const dyv = DY(D.nodes[r.node] || r);
-      m4.compose(new THREE.Vector3(d.x + (dx / Math.hypot(dx, dz)) * len / 2, dyv + 0.55, d.z + (dz / Math.hypot(dx, dz)) * len / 2), q, new THREE.Vector3(len, 1.1, 0.08));
-      im.setMatrixAt(i, m4);
-    });
-    im.castShadow = true;
-    levelGroups[lv].add(im);
-  }
 }
 // teacher corridor + exits tags
 {
