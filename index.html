@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="hu" data-photo-base="photos/" data-version="556499dbc0">
+<html lang="hu" data-photo-base="photos/" data-version="c3cfbfb781">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,7 @@
 <link rel="icon" type="image/png" href="assets/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css?v=556499dbc0">
+<link rel="stylesheet" href="style.css?v=c3cfbfb781">
 <script>
 // Új verzió ellenőrzése: ha a szerveren frissebb verzió van, mint amit a böngésző a gyorsítótárból betöltött,
 // az oldal egyszer újratölt egy új címmel (?v=...), így minden fájl frissen jön le.
@@ -117,6 +117,46 @@
   </div>
 </div>
 
-<script type="module" src="app.js?v=556499dbc0"></script>
+<div class="lock" id="lock" hidden role="dialog" aria-modal="true" aria-labelledby="lockTitle">
+  <div class="lock-box">
+    <h2 id="lockTitle">Fotószerkesztő</h2>
+    <p>Add meg a jelszót.</p>
+    <input type="password" id="lockPw" autocomplete="off" aria-label="Jelszó">
+    <p class="lock-err" id="lockErr" hidden>Hibás jelszó.</p>
+    <div class="row"><button class="btn primary" id="lockOk">Belépés</button><button class="btn" id="lockCancel">Mégse</button></div>
+  </div>
+</div>
+
+<aside class="editor" id="editor" hidden aria-label="Fotószerkesztő">
+  <div class="ed-head"><b>Fotószerkesztő</b><button class="btn small" id="edClose">Kilépés</button></div>
+  <p class="ed-hint" id="edHint">Kattints egy kék fotópontra a kiválasztáshoz, majd húzd a helyére. A szintet a jobb oldali szintváltóval válthatod.</p>
+  <div id="edSel" hidden>
+    <img id="edThumb" class="ed-thumb" alt="">
+    <div class="ed-id" id="edId"></div>
+    <label class="ed-l">Aláírás<input id="edCaption" autocomplete="off"></label>
+    <label class="ed-l">Szint<select id="edLevel"></select></label>
+    <div class="ed-l">Nézési irány (0 = észak/fel, 90 = kelet/jobbra)
+      <div class="ed-rot">
+        <button class="btn small" id="edRotL" title="Forgatás balra 15°">↺ 15°</button>
+        <input type="range" id="edHeading" min="0" max="359" step="1">
+        <input type="number" id="edHeadingNum" min="0" max="359" step="1">
+        <button class="btn small" id="edRotR" title="Forgatás jobbra 15°">↻ 15°</button>
+      </div>
+    </div>
+    <p class="ed-tip">Húzás: a kiválasztott pont mozgatása · Q / E: forgatás 5°-kal</p>
+    <div class="row"><button class="btn small" id="edView">Fotó megnézése</button><button class="btn small" id="edUndo">Ennek a visszaállítása</button></div>
+  </div>
+  <div class="ed-foot">
+    <div class="ed-count" id="edCount">Nincs módosítás</div>
+    <div class="row">
+      <button class="btn primary small" id="edDownload" disabled>photos.py letöltése</button>
+      <button class="btn small" id="edCopy" disabled>Másolás vágólapra</button>
+    </div>
+    <button class="btn small ghost" id="edReset" disabled>Minden módosítás elvetése</button>
+    <p class="ed-tip">A módosítások ebben a böngészőben megmaradnak. A letöltött <code>photos.py</code>-t a repó <code>tools/</code> mappájába kell tenni, majd lefuttatni a <code>tools/build.py</code> és a <code>tools/stamp.py</code> szkriptet.</p>
+  </div>
+</aside>
+
+<script type="module" src="app.js?v=c3cfbfb781"></script>
 </body>
 </html>

@@ -29,6 +29,16 @@ GitHub Pages-en (Settings → Pages → *Deploy from a branch* → `main` / root
 - **Fotók**: a kék pontok a folyosókon készült fotók. Kattintásra a kamera „beugrik” a modellbe a fotó helyére, majd megnyílik a kép, amelyen húzással körbe lehet nézni és nagyítani lehet. A sarokban kis térkép mutatja, hol és melyik irányba készült. Útvonaltervezés után a „Fotó a célnál” gomb megmutatja a cél környékét.
 - **Súgó**: első megnyitáskor (és a fejléc „?” gombjával) rövid útmutató jelenik meg, hogy az iskolát nem ismerők is eligazodjanak.
 
+## Fotószerkesztő (rejtett)
+
+A fotópontok helye, iránya, szintje és aláírása a böngészőben is javítható:
+
+1. Kattints **5-ször gyorsan a címerre** (vagy nyomd meg a **Ctrl+Shift+E** billentyűket), és add meg a jelszót.
+2. Kattints egy kék fotópontra: kijelölődik (piros karika). Húzd a helyére, a nézési irányt a csúszkával vagy a **Q / E** billentyűkkel állíthatod. A szintet és az aláírást is átírhatod.
+3. **photos.py letöltése** → a letöltött fájllal cseréld le a `tools/photos.py`-t, majd futtasd: `python3 tools/build.py` és `python3 tools/stamp.py`, aztán töltsd fel.
+
+A módosítások addig a böngészőben megmaradnak (újratöltés után is). A jelszó cseréje: `python3 tools/jelszo.py "uj-jelszo"`. A jelszó csak elrejti a szerkesztőt: az oldal maga nem változik, amíg a letöltött fájlt fel nem töltöd a repóba.
+
 ## Adatok szerkesztése
 
 Minden a `data/building.json`-ban van, ezt a `tools/build.py` állítja elő:

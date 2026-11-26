@@ -28,21 +28,29 @@ def interp(x, xs, ys):
         k = (ys[-1]-ys[-2])/(xs[-1]-xs[-2]); return ys[-1] + (x-xs[-1])*k
     return float(np.interp(x, xs, ys))
 
+# Szintenkénti illesztés: alaprajz-pixel -> az 1. emeleti alaprajz pixelrendszere.
+# x: szakaszonként lineáris (xs -> ys), y: Y = a*y + b; a 2. emeleti H-tömb külön y-eltolást kap.
+TRANSFORM = {
+    0: dict(xs=[105, 505, 1535, 2490], ys=[29, 378, 1270, 2540], a=1.04, b=1090 - 404 * 1.04),
+    1: dict(xs=[0, 1], ys=[0, 1], a=1.0, b=0.0),
+    2: dict(xs=[165, 958, 1600, 2415], ys=[485, 1203, 1905, 2510], a=0.978, b=92.3, hshift=dict(x=1950, y=450, d=-130)),
+}
+TRANSFORM[3] = TRANSFORM[2]
+CENTER = (1290, 600)
+
 def to_ref(level, x, y):
     """plan pixel of a level -> floor-1 reference pixel"""
-    if level == 0:
-        return interp(x, [105, 505, 1535, 2490], [29, 378, 1270, 2540]), 1090 + (y-404)*1.04
-    if level == 1:
-        return x, y
-    X = interp(x, [165, 958, 1600, 2415], [485, 1203, 1905, 2510])
-    Y = 0.978*y + 92.3
-    if x > 1950 and y < 450:  # H block is drawn lower on the 2nd floor plan
-        Y -= 130
+    t = TRANSFORM[level]
+    X = interp(x, t['xs'], t['ys'])
+    Y = t['a'] * y + t['b']
+    hs = t.get('hshift')
+    if hs and x > hs['x'] and y < hs['y']:  # H block is drawn lower on the 2nd floor plan
+        Y += hs['d']
     return X, Y
 
 def to_world(level, x, y):
     X, Y = to_ref(level, x, y)
-    return round((X-1290)/PX_PER_M, 3), round((Y-600)/PX_PER_M, 3)
+    return round((X-CENTER[0])/PX_PER_M, 3), round((Y-CENTER[1])/PX_PER_M, 3)
 
 labs = {fl: segment(os.path.join(HERE, 'alaprajz', fn)) for fl, fn in PLAN_FILES.items()}
 
@@ -193,7 +201,7 @@ for f in glob.glob(f'{PHOTO_DIR}/*/*'):
 photos = []
 for num, lv, x, y, hdg, cap in PHOTOS:
     wx, wz = to_world(lv, x, y)
-    photos.append(dict(id=f'p{num}', file=files[num], level=lv, x=wx, z=wz,
+    photos.append(dict(id=f'p{num}', num=num, px=[x, y], file=files[num], level=lv, x=wx, z=wz,
                        heading=hdg, caption=cap, group=files[num].split('/')[0], dy=dy_at(lv, x, y)))
 missing = set(files) - {p[0] for p in PHOTOS}
 dup = len(PHOTOS) - len({p[0] for p in PHOTOS})
@@ -204,7 +212,7 @@ for r in rooms:
     r.pop('rect_px')
 flights = [dict(level=lv, poly=wpoly(lv, rect_poly(r)), dir=d, dy0=a0, dy1=a1) for lv, r, d, a0, a1 in FLIGHTS]
 landings = [dict(level=lv, poly=wpoly(lv, rect_poly(r)), dy=h) for lv, r, h in LANDINGS]
-data = dict(flights=flights, landings=landings, levels=[dict(level=k, name=v) for k, v in LEVEL_NAMES.items()],
+data = dict(transform=dict(px_per_m=PX_PER_M, center=CENTER, levels=TRANSFORM), flights=flights, landings=landings, levels=[dict(level=k, name=v) for k, v in LEVEL_NAMES.items()],
             rooms=rooms, corridors=corridors,
             nodes=[dict(id=n['id'], level=n['level'], x=n['x'], z=n['z'], dy=EXPLICIT_DY.get((n['level'], *n['px']), dy_at(n['level'], *n['px'])), kind=n['kind'], label=n['label']) for n in node_list],
             edges=edges, exits=exits, photos=photos)

@@ -315,25 +315,38 @@ const photoGeo = (() => {
 })();
 const photoMats = {};
 const photoMeshes = {};
-for (const lv of LEVELS) {
-  const list = D.photos.filter((p) => p.level === lv);
-  if (!list.length) continue;
-  const mat = new THREE.MeshBasicMaterial({ color: 0x1a73e8, transparent: true, depthTest: true });
-  photoMats[lv] = mat;
-  const im = new THREE.InstancedMesh(photoGeo, mat, list.length);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion();
-  list.forEach((p, i) => {
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -p.heading * Math.PI / 180);
-    m4.compose(new THREE.Vector3(p.x, 0.12 + DY(p), p.z), q, new THREE.Vector3(1, 1, 1));
-    im.setMatrixAt(i, m4);
-    im.setColorAt(i, new THREE.Color(0xffffff));
-  });
-  im.userData = { photos: list };
-  im.renderOrder = 2;
-  photoMeshes[lv] = im;
-  levelGroups[lv].add(im);
-  pickables.push(im);
+const photoSlot = new Map(); // photo -> [mesh, index]
+function buildPhotoMarkers() {
+  for (const lv of Object.keys(photoMeshes)) {
+    const im = photoMeshes[lv];
+    im.parent && im.parent.remove(im); im.dispose();
+    const k = pickables.indexOf(im); if (k >= 0) pickables.splice(k, 1);
+    delete photoMeshes[lv];
+  }
+  photoSlot.clear();
+  for (const lv of LEVELS) {
+    const list = D.photos.filter((p) => p.level === lv);
+    if (!list.length) continue;
+    const mat = photoMats[lv] ||= new THREE.MeshBasicMaterial({ color: 0x1a73e8, transparent: true, depthTest: true });
+    const im = new THREE.InstancedMesh(photoGeo, mat, list.length);
+    list.forEach((p, i) => { photoSlot.set(p, [im, i]); im.setColorAt(i, new THREE.Color(0xffffff)); placeMarker(p); });
+    im.userData = { photos: list };
+    im.renderOrder = 2;
+    photoMeshes[lv] = im;
+    levelGroups[lv].add(im);
+    pickables.push(im);
+  }
 }
+const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _yAxis = new THREE.Vector3(0, 1, 0), _one = new THREE.Vector3(1, 1, 1);
+function placeMarker(p) {
+  const slot = photoSlot.get(p); if (!slot) return;
+  _q.setFromAxisAngle(_yAxis, -p.heading * Math.PI / 180);
+  _m4.compose(new THREE.Vector3(p.x, 0.12 + DY(p), p.z), _q, _one);
+  slot[0].setMatrixAt(slot[1], _m4);
+  slot[0].instanceMatrix.needsUpdate = true;
+  slot[0].computeBoundingSphere();
+}
+buildPhotoMarkers();
 
 // ------------------------------------------------------------ level visibility / explode
 function visibleLevel(lv) { return S.alphaTarget[lv] > 0.01; }
@@ -710,7 +723,7 @@ function pick(ev) {
 let downAt = null;
 renderer.domElement.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
 renderer.domElement.addEventListener('pointerup', (e) => {
-  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5 || S.sv) return;
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5 || S.sv || S.edit) return;
   const h = pick(e);
   if (h && h.photo) openStreet(h.photo);
   else if (h && h.room) showCard(h.room);
@@ -882,6 +895,207 @@ function photoNear(node) {
 }
 $('walkBtn').addEventListener('click', () => { const p = S.route && photoNear(S.route.nodes[S.route.nodes.length - 1]); if (p) openStreet(p); });
 
+// ------------------------------------------------------------ photo editor (hidden, password protected)
+// Belépés: 5 gyors kattintás a címerre, vagy Ctrl+Shift+E. A jelszó SHA-256 lenyomata (tools/jelszo.py állítja).
+const EDITOR_HASH = '4402934cb1105bbe8e46b0d255e35c04b5aef23a5e310cc7a98560e1e1355f61';
+const ED_KEY = 'iparimap-photo-edits';
+const ED = { sel: null, drag: null, orig: new Map(), edits: {} };
+const TR = D.transform;
+for (const p of D.photos) ED.orig.set(p.id, { x: p.x, z: p.z, level: p.level, heading: p.heading, caption: p.caption, dy: p.dy, px: p.px });
+const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
+const ssGet = (k) => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
+const ssSet = (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) {} };
+async function sha256(t) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+// world -> plan pixel of that level (inverse of tools/build.py to_ref/to_world)
+function invInterp(Y, xs, ys) {
+  const n = xs.length;
+  let i = 0;
+  if (Y <= ys[0]) i = 0; else if (Y >= ys[n - 1]) i = n - 2; else while (i < n - 2 && Y > ys[i + 1]) i++;
+  return xs[i] + ((Y - ys[i]) * (xs[i + 1] - xs[i])) / (ys[i + 1] - ys[i]);
+}
+function toPlan(level, wx, wz) {
+  const t = TR.levels[level];
+  const X = wx * TR.px_per_m + TR.center[0], Y = wz * TR.px_per_m + TR.center[1];
+  const x = invInterp(X, t.xs, t.ys);
+  let y = (Y - t.b) / t.a;
+  if (t.hshift && x > t.hshift.x) { const y2 = (Y - t.b - t.hshift.d) / t.a; if (y2 < t.hshift.y) y = y2; }
+  return [Math.round(x), Math.round(y)];
+}
+function isChanged(p) {
+  const o = ED.orig.get(p.id);
+  return Math.abs(o.x - p.x) > 0.01 || Math.abs(o.z - p.z) > 0.01 || o.level !== p.level || o.heading !== p.heading || o.caption !== p.caption;
+}
+function saveEdits() {
+  const e = {};
+  for (const p of D.photos) if (isChanged(p)) e[p.id] = { x: p.x, z: p.z, level: p.level, heading: p.heading, caption: p.caption };
+  ED.edits = e;
+  lsSet(ED_KEY, Object.keys(e).length ? JSON.stringify(e) : null);
+  $('edCount').textContent = Object.keys(e).length ? `${Object.keys(e).length} módosított fotó` : 'Nincs módosítás';
+  $('edDownload').disabled = $('edCopy').disabled = $('edReset').disabled = !Object.keys(e).length;
+}
+function loadEdits() {
+  let e = {};
+  try { e = JSON.parse(lsGet(ED_KEY) || '{}') || {}; } catch (err) { e = {}; }
+  for (const p of D.photos) if (e[p.id]) { Object.assign(p, e[p.id]); if (p.level !== ED.orig.get(p.id).level) p.dy = 0; }
+  buildPhotoMarkers();
+}
+const selRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.25, 40), new THREE.MeshBasicMaterial({ color: 0xe11f26, transparent: true, depthTest: false }));
+selRing.rotation.x = -Math.PI / 2; selRing.renderOrder = 12; selRing.visible = false;
+scene.add(selRing);
+function updateRing() {
+  const p = ED.sel;
+  selRing.visible = !!(S.edit && p && levelGroups[p.level].visible);
+  if (p) selRing.position.set(p.x, levelGroups[p.level].position.y + DY(p) + 0.15, p.z);
+}
+function selectPhoto(p) {
+  ED.sel = p;
+  const box = $('edSel');
+  if (!p) { box.hidden = true; $('edHint').hidden = false; updateRing(); return; }
+  box.hidden = false; $('edHint').hidden = true;
+  $('edThumb').src = PHOTO_BASE + p.file;
+  $('edId').textContent = `${p.file.split('/').pop().replace(/\.\w+$/, '')} · ${levelName(p.level)}`;
+  $('edCaption').value = p.caption;
+  $('edLevel').value = String(p.level);
+  $('edHeading').value = String(((p.heading % 360) + 360) % 360);
+  $('edHeadingNum').value = String(((p.heading % 360) + 360) % 360);
+  if (S.level !== 'all' && S.level !== p.level) { S.level = p.level; applyLevelMode(); }
+  updateRing();
+}
+function setHeading(h) {
+  const p = ED.sel; if (!p) return;
+  p.heading = ((Math.round(h) % 360) + 360) % 360;
+  $('edHeading').value = $('edHeadingNum').value = String(p.heading);
+  placeMarker(p); saveEdits();
+}
+async function openEditor() {
+  if (S.sv) closeStreet();
+  if (ssGet('iparimap-ed') !== '1') { $('lock').hidden = false; $('lockPw').value = ''; $('lockErr').hidden = true; $('lockPw').focus(); return; }
+  S.edit = true; S.showPhotos = true; $('photoToggle').checked = true;
+  document.body.classList.add('editing');
+  $('editor').hidden = false; $('card').hidden = true;
+  loadEdits(); saveEdits(); selectPhoto(null);
+}
+function closeEditor() {
+  S.edit = false; ED.drag = null; controls.enabled = true;
+  document.body.classList.remove('editing');
+  $('editor').hidden = true; selectPhoto(null);
+}
+$('lockOk').addEventListener('click', async () => {
+  const ok = (await sha256($('lockPw').value)) === EDITOR_HASH;
+  if (!ok) { $('lockErr').hidden = false; $('lockPw').select(); return; }
+  ssSet('iparimap-ed', '1'); $('lock').hidden = true; openEditor();
+});
+$('lockPw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('lockOk').click(); if (e.key === 'Escape') $('lock').hidden = true; });
+$('lockCancel').addEventListener('click', () => { $('lock').hidden = true; });
+$('edClose').addEventListener('click', closeEditor);
+// hidden entry: 5 quick clicks on the crest, or Ctrl/Cmd+Shift+E
+{
+  let clicks = [];
+  document.querySelector('.crest').addEventListener('click', () => {
+    const t = performance.now(); clicks = clicks.filter((c) => t - c < 3000); clicks.push(t);
+    if (clicks.length >= 5) { clicks = []; openEditor(); }
+  });
+  addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'E' || e.key === 'e')) { e.preventDefault(); openEditor(); } });
+}
+// selecting and dragging markers on the map
+function groundPoint(ev, p) {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -(levelGroups[p.level].position.y + DY(p) + 0.12));
+  const v = new THREE.Vector3();
+  return ray.ray.intersectPlane(plane, v) ? v : null;
+}
+{
+  let down = null;
+  host.addEventListener('pointerdown', (e) => {
+    if (!S.edit || e.button !== 0 || e.target !== renderer.domElement) return;
+    down = [e.clientX, e.clientY];
+    const h = pick(e);
+    if (h && h.photo && h.photo === ED.sel) {
+      const g = groundPoint(e, h.photo);
+      if (g) { ED.drag = { p: h.photo, dx: h.photo.x - g.x, dz: h.photo.z - g.z }; controls.enabled = false; e.stopPropagation(); renderer.domElement.setPointerCapture(e.pointerId); }
+    }
+  }, true);
+  host.addEventListener('pointermove', (e) => {
+    if (!S.edit || !ED.drag) return;
+    const p = ED.drag.p, g = groundPoint(e, p);
+    if (!g) return;
+    p.x = +(g.x + ED.drag.dx).toFixed(3); p.z = +(g.z + ED.drag.dz).toFixed(3);
+    placeMarker(p); updateRing(); e.stopPropagation();
+  }, true);
+  host.addEventListener('pointerup', (e) => {
+    if (!S.edit) return;
+    if (ED.drag) { ED.drag = null; controls.enabled = true; saveEdits(); return; }
+    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5 || e.target !== renderer.domElement) return;
+    const h = pick(e);
+    selectPhoto(h && h.photo ? h.photo : null);
+  }, true);
+}
+// panel controls
+$('edHeading').addEventListener('input', (e) => setHeading(+e.target.value));
+$('edHeadingNum').addEventListener('change', (e) => setHeading(+e.target.value || 0));
+$('edRotL').addEventListener('click', () => ED.sel && setHeading(ED.sel.heading - 15));
+$('edRotR').addEventListener('click', () => ED.sel && setHeading(ED.sel.heading + 15));
+$('edCaption').addEventListener('input', (e) => { if (!ED.sel) return; ED.sel.caption = e.target.value; saveEdits(); });
+$('edLevel').innerHTML = LEVELS.map((l) => `<option value="${l}">${esc(levelName(l))}</option>`).join('');
+$('edLevel').addEventListener('change', (e) => {
+  const p = ED.sel; if (!p) return;
+  p.level = +e.target.value; p.dy = p.level === ED.orig.get(p.id).level ? ED.orig.get(p.id).dy : 0;
+  buildPhotoMarkers(); saveEdits(); selectPhoto(p);
+});
+$('edView').addEventListener('click', () => { if (ED.sel) openStreet(ED.sel); });
+$('edUndo').addEventListener('click', () => {
+  const p = ED.sel; if (!p) return;
+  const o = ED.orig.get(p.id); Object.assign(p, { x: o.x, z: o.z, level: o.level, heading: o.heading, caption: o.caption, dy: o.dy });
+  buildPhotoMarkers(); saveEdits(); selectPhoto(p);
+});
+$('edReset').addEventListener('click', () => {
+  if (!$('edReset').dataset.armed) { $('edReset').dataset.armed = '1'; $('edReset').textContent = 'Biztosan? Kattints újra'; setTimeout(() => { delete $('edReset').dataset.armed; $('edReset').textContent = 'Minden módosítás elvetése'; }, 3000); return; }
+  delete $('edReset').dataset.armed; $('edReset').textContent = 'Minden módosítás elvetése';
+  for (const p of D.photos) { const o = ED.orig.get(p.id); Object.assign(p, { x: o.x, z: o.z, level: o.level, heading: o.heading, caption: o.caption, dy: o.dy }); }
+  buildPhotoMarkers(); saveEdits(); selectPhoto(null);
+});
+addEventListener('keydown', (e) => {
+  if (!S.edit || !ED.sel || S.sv || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (e.key === 'q' || e.key === 'Q') setHeading(ED.sel.heading - 5);
+  else if (e.key === 'e' || e.key === 'E') { if (!e.shiftKey) setHeading(ED.sel.heading + 5); }
+  else if (e.key === 'Escape') selectPhoto(null);
+});
+// export: a complete tools/photos.py
+function pyStr(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
+function exportPhotosPy() {
+  const lines = [
+    '# Photo placements: (number, level, x_px, y_px, heading_deg, caption)',
+    "# x/y are plan pixels of that level's plan (level 3 uses the 2nd-floor plan coords).",
+    '# heading: 0 = up on the plan (north), 90 = right (east), 180 = down, 270 = left.',
+    '# A fotószerkesztővel módosítva.',
+    'PHOTOS = [',
+  ];
+  let group = null;
+  for (const p of D.photos) {
+    if (p.group !== group) { group = p.group; lines.push(` # --- ${group} ---`); }
+    const [x, y] = isChanged(p) && (p.x !== ED.orig.get(p.id).x || p.z !== ED.orig.get(p.id).z || p.level !== ED.orig.get(p.id).level) ? toPlan(p.level, p.x, p.z) : p.px;
+    lines.push(` (${p.num},${p.level},${x},${y},${p.heading},${pyStr(p.caption)}),`);
+  }
+  lines.push(']', '');
+  return lines.join('\n');
+}
+$('edDownload').addEventListener('click', () => {
+  const blob = new Blob([exportPhotosPy()], { type: 'text/x-python' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'photos.py';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+$('edCopy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(exportPhotosPy()); $('edCopy').textContent = 'Kimásolva ✓'; }
+  catch (err) { $('edCopy').textContent = 'Nem sikerült másolni'; }
+  setTimeout(() => { $('edCopy').textContent = 'Másolás vágólapra'; }, 2000);
+});
+
 // ------------------------------------------------------------ render loop
 applyLevelMode();
 camera.position.set(-30, 190, 230);
@@ -899,6 +1113,7 @@ function frame(now) {
   const moved = updateLevels(dt);
   if (moved || !stairGroup.children.length) { buildStairs(); if (S.route) drawRoute(); }
   animateChevrons(now / 1000);
+  if (S.edit) updateRing();
   // labels: declutter by distance & level visibility
   const camPos = camera.position;
   for (const o of labels) {

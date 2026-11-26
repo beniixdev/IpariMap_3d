@@ -146,10 +146,35 @@ button{cursor:pointer}
 .help .small{font-size:13.5px;color:var(--muted)}
 .help .btn{width:100%;margin-top:6px}
 
+/* photo editor */
+.lock{position:fixed;inset:0;z-index:70;background:rgba(20,18,16,.55);display:grid;place-items:center;padding:16px}
+.lock-box{background:#fff;border-radius:16px;box-shadow:var(--shadow);width:min(340px,100%);padding:20px}
+.lock-box h2{font:700 26px/1.1 'Barlow Condensed',Arial Narrow,sans-serif;margin:0 0 4px}
+.lock-box p{margin:0 0 10px;color:var(--muted)}
+.lock-box input{width:100%;font-size:16px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:10px}
+.lock-err{color:var(--red-d)!important;font-weight:600}
+.lock-box .row,.editor .row{display:flex;gap:8px;flex-wrap:wrap}
+.editor{position:fixed;top:70px;left:14px;width:min(340px,calc(100vw - 28px));max-height:calc(100vh - 86px);overflow:auto;background:#fff;border-radius:14px;box-shadow:var(--shadow);z-index:16;padding:14px;border:3px solid var(--red)}
+body.editing .panel,body.editing .legend,body.editing .hint{display:none}
+.ed-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.ed-head b{font:700 24px 'Barlow Condensed',Arial Narrow,sans-serif;color:var(--red)}
+.ed-hint,.ed-tip{font-size:13px;color:var(--muted);margin:6px 0}
+.ed-thumb{width:100%;aspect-ratio:3/2;object-fit:cover;border-radius:10px;background:#ddd;display:block}
+.ed-id{font-size:12.5px;color:var(--muted);margin:4px 0 8px}
+.ed-l{display:block;font-size:13px;font-weight:600;margin:8px 0}
+.ed-l input:not([type=range]),.ed-l select{display:block;width:100%;margin-top:4px;font-size:15px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.ed-rot{display:flex;align-items:center;gap:6px;margin-top:4px}
+.ed-rot input[type=range]{flex:1;accent-color:var(--red)}
+.ed-rot input[type=number]{width:64px!important;display:inline-block!important;margin:0!important}
+.ed-foot{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
+.ed-count{font:700 17px 'Barlow Condensed',Arial Narrow,sans-serif;margin-bottom:8px}
+.btn.ghost{border-color:transparent;color:var(--red-d);margin-top:6px;padding-left:0}
+.ed-tip code{font-size:12px;background:#f3f1ec;padding:0 4px;border-radius:4px}
 @media (max-width:720px){
   .brand span{display:none}
   .brand b{font-size:20px}
   .panel{top:auto;bottom:0;left:0;width:100%;max-height:46vh;border-radius:16px 16px 0 0}
+  .editor{top:auto;bottom:0;left:0;width:100%;max-height:52vh;border-radius:16px 16px 0 0}
   .legend,.hint{display:none}
   .tools{top:66px;bottom:auto;right:10px;padding:4px 8px}
   .tg.slider{display:none}
