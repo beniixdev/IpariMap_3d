@@ -35,9 +35,11 @@ A fotópontok helye, iránya, szintje és aláírása a böngészőben is javít
 
 1. Kattints **5-ször gyorsan a címerre** (vagy nyomd meg a **Ctrl+Shift+E** billentyűket), és add meg a jelszót.
 2. Kattints egy kék fotópontra: kijelölődik (piros karika). Húzd a helyére, a nézési irányt a csúszkával vagy a **Q / E** billentyűkkel állíthatod. A szintet és az aláírást is átírhatod.
-3. **photos.py letöltése** → a letöltött fájllal cseréld le a `tools/photos.py`-t, majd futtasd: `python3 tools/build.py` és `python3 tools/stamp.py`, aztán töltsd fel.
+3. Egy fotó törléséhez kattints a **Fotó törlése** gombra (kétszer, megerősítésként).
+4. **Mentés a weboldalra**: a szerkesztő egy commitként közvetlenül a repóba menti a változásokat (`data/building.json`, `tools/photos.py`, verziószám, a törölt képfájlok törlése). Az oldal kb. egy perc múlva frissül. Ehhez egy GitHub token kell: Settings → Developer settings → Personal access tokens → *Fine-grained tokens*, csak erre a repóra, **Contents: Read and write** joggal. A tokent a szerkesztő csak akkor jegyzi meg, ha bepipálod.
+5. Mentés helyett a **photos.py letöltése** is működik: a fájllal cseréld le a `tools/photos.py`-t, futtasd a `python3 tools/build.py` és `python3 tools/stamp.py` parancsot, majd töltsd fel.
 
-A módosítások addig a böngészőben megmaradnak (újratöltés után is). A jelszó cseréje: `python3 tools/jelszo.py "uj-jelszo"`. A jelszó csak elrejti a szerkesztőt: az oldal maga nem változik, amíg a letöltött fájlt fel nem töltöd a repóba.
+A módosítások addig a böngészőben megmaradnak (újratöltés után is). A jelszó cseréje: `python3 tools/jelszo.py "uj-jelszo"`. A jelszó csak elrejti a szerkesztőt; menteni csak érvényes, írási joggal rendelkező GitHub tokennel lehet.
 
 ## Adatok szerkesztése
 

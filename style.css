@@ -168,6 +168,12 @@ body.editing .panel,body.editing .legend,body.editing .hint{display:none}
 .ed-rot input[type=number]{width:64px!important;display:inline-block!important;margin:0!important}
 .ed-foot{border-top:1px solid var(--line);margin-top:12px;padding-top:10px}
 .ed-count{font:700 17px 'Barlow Condensed',Arial Narrow,sans-serif;margin-bottom:8px}
+.btn.danger{color:var(--red-d);border-color:#f0b8ba;margin-top:8px}
+.btn.danger:hover{background:#fdecec;border-color:var(--red)}
+.ed-status{font-size:13.5px;margin:6px 0;min-height:1em}
+.ed-status.ok{color:#1e7e34;font-weight:600}.ed-status.err{color:var(--red-d);font-weight:600}
+.ed-help{font-size:13px;color:var(--muted);margin:4px 0 10px}.ed-help summary{cursor:pointer;font-weight:600;color:var(--ink)}.ed-help ol{padding-left:18px;margin:6px 0}
+#edSave{width:100%;margin-top:4px}
 .btn.ghost{border-color:transparent;color:var(--red-d);margin-top:6px;padding-left:0}
 .ed-tip code{font-size:12px;background:#f3f1ec;padding:0 4px;border-radius:4px}
 @media (max-width:720px){

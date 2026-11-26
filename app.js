@@ -899,7 +899,7 @@ $('walkBtn').addEventListener('click', () => { const p = S.route && photoNear(S.
 // Belépés: 5 gyors kattintás a címerre, vagy Ctrl+Shift+E. A jelszó SHA-256 lenyomata (tools/jelszo.py állítja).
 const EDITOR_HASH = '4402934cb1105bbe8e46b0d255e35c04b5aef23a5e310cc7a98560e1e1355f61';
 const ED_KEY = 'iparimap-photo-edits';
-const ED = { sel: null, drag: null, orig: new Map(), edits: {} };
+const ED = { sel: null, drag: null, orig: new Map(), edits: {}, all: D.photos.slice(), deleted: new Set() };
 const TR = D.transform;
 for (const p of D.photos) ED.orig.set(p.id, { x: p.x, z: p.z, level: p.level, heading: p.heading, caption: p.caption, dy: p.dy, px: p.px });
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
@@ -942,15 +942,23 @@ function saveEdits() {
   const e = {};
   for (const p of D.photos) if (isChanged(p)) e[p.id] = { x: p.x, z: p.z, level: p.level, heading: p.heading, caption: p.caption };
   ED.edits = e;
-  lsSet(ED_KEY, Object.keys(e).length ? JSON.stringify(e) : null);
-  $('edCount').textContent = Object.keys(e).length ? `${Object.keys(e).length} módosított fotó` : 'Nincs módosítás';
-  $('edDownload').disabled = $('edCopy').disabled = $('edReset').disabled = !Object.keys(e).length;
+  const nEd = Object.keys(e).length, nDel = ED.deleted.size;
+  lsSet(ED_KEY, nEd || nDel ? JSON.stringify({ edits: e, deleted: [...ED.deleted] }) : null);
+  $('edCount').textContent = nEd || nDel ? [nEd ? `${nEd} módosított` : '', nDel ? `${nDel} törölt` : ''].filter(Boolean).join(', ') + ' fotó' : 'Nincs módosítás';
+  $('edDownload').disabled = $('edCopy').disabled = $('edReset').disabled = $('edSave').disabled = !(nEd || nDel);
 }
 function loadEdits() {
-  let e = {};
-  try { e = JSON.parse(lsGet(ED_KEY) || '{}') || {}; } catch (err) { e = {}; }
+  let st = {};
+  try { st = JSON.parse(lsGet(ED_KEY) || '{}') || {}; } catch (err) { st = {}; }
+  const e = st.edits || (st.deleted ? {} : st);
+  ED.deleted = new Set((st.deleted || []).filter((id) => ED.orig.has(id)));
+  D.photos = ED.all.filter((p) => !ED.deleted.has(p.id));
   for (const p of D.photos) if (e[p.id]) { Object.assign(p, e[p.id]); p.dy = dyAt(p.level, p.x, p.z); }
   buildPhotoMarkers();
+}
+function restoreAll() {
+  for (const p of ED.all) { const o = ED.orig.get(p.id); Object.assign(p, { x: o.x, z: o.z, level: o.level, heading: o.heading, caption: o.caption, dy: o.dy }); }
+  ED.deleted.clear(); D.photos = ED.all.slice();
 }
 const selRing = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.25, 40), new THREE.MeshBasicMaterial({ color: 0xe11f26, transparent: true, depthTest: false }));
 selRing.rotation.x = -Math.PI / 2; selRing.renderOrder = 12; selRing.visible = false;
@@ -1067,7 +1075,7 @@ $('edUndo').addEventListener('click', () => {
 $('edReset').addEventListener('click', () => {
   if (!$('edReset').dataset.armed) { $('edReset').dataset.armed = '1'; $('edReset').textContent = 'Biztosan? Kattints újra'; setTimeout(() => { delete $('edReset').dataset.armed; $('edReset').textContent = 'Minden módosítás elvetése'; }, 3000); return; }
   delete $('edReset').dataset.armed; $('edReset').textContent = 'Minden módosítás elvetése';
-  for (const p of D.photos) { const o = ED.orig.get(p.id); Object.assign(p, { x: o.x, z: o.z, level: o.level, heading: o.heading, caption: o.caption, dy: o.dy }); }
+  restoreAll();
   buildPhotoMarkers(); saveEdits(); selectPhoto(null);
 });
 addEventListener('keydown', (e) => {
@@ -1076,6 +1084,18 @@ addEventListener('keydown', (e) => {
   else if (e.key === 'e' || e.key === 'E') { if (!e.shiftKey) setHeading(ED.sel.heading + 5); }
   else if (e.key === 'Escape') selectPhoto(null);
 });
+// delete a photo (two clicks)
+$('edDelete').addEventListener('click', () => {
+  const p = ED.sel, b = $('edDelete'); if (!p) return;
+  if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Biztosan törlöd? Kattints újra'; setTimeout(() => { delete b.dataset.armed; b.textContent = 'Fotó törlése'; }, 3000); return; }
+  delete b.dataset.armed; b.textContent = 'Fotó törlése';
+  ED.deleted.add(p.id); D.photos = ED.all.filter((q) => !ED.deleted.has(q.id));
+  buildPhotoMarkers(); selectPhoto(null); saveEdits();
+});
+function planPx(p) {
+  const o = ED.orig.get(p.id);
+  return p.x !== o.x || p.z !== o.z || p.level !== o.level ? toPlan(p.level, p.x, p.z) : p.px;
+}
 // export: a complete tools/photos.py
 function pyStr(s) { return "'" + String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'"; }
 function exportPhotosPy() {
@@ -1089,7 +1109,7 @@ function exportPhotosPy() {
   let group = null;
   for (const p of D.photos) {
     if (p.group !== group) { group = p.group; lines.push(` # --- ${group} ---`); }
-    const [x, y] = isChanged(p) && (p.x !== ED.orig.get(p.id).x || p.z !== ED.orig.get(p.id).z || p.level !== ED.orig.get(p.id).level) ? toPlan(p.level, p.x, p.z) : p.px;
+    const [x, y] = planPx(p);
     lines.push(` (${p.num},${p.level},${x},${y},${p.heading},${pyStr(p.caption)}),`);
   }
   lines.push(']', '');
@@ -1104,6 +1124,84 @@ $('edCopy').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(exportPhotosPy()); $('edCopy').textContent = 'Kimásolva ✓'; }
   catch (err) { $('edCopy').textContent = 'Nem sikerült másolni'; }
   setTimeout(() => { $('edCopy').textContent = 'Másolás vágólapra'; }, 2000);
+});
+
+// save straight to the GitHub repo (needs a token with Contents: read & write on this repo)
+const GH = (() => {
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  const repo = m && location.pathname.split('/').filter(Boolean)[0];
+  return { owner: m ? m[1] : 'beniixdev', repo: repo || 'IpariMap_3d', branch: 'main' };
+})();
+const TOKEN_KEY = 'iparimap-gh-token';
+{
+  const t = lsGet(TOKEN_KEY);
+  if (t) { $('edToken').value = t; $('edRemember').checked = true; }
+}
+function edStatus(msg, kind = '') { const el = $('edStatus'); el.textContent = msg; el.className = 'ed-status ' + kind; }
+async function gh(token, path, opts = {}) {
+  const r = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}${path}`, {
+    cache: 'no-store', // két gyors mentés egymás után se a régi állapotra épüljön
+    ...opts,
+    headers: { Accept: 'application/vnd.github+json', Authorization: `Bearer ${token}`, 'X-GitHub-Api-Version': '2022-11-28', ...(opts.body ? { 'Content-Type': 'application/json' } : {}) },
+  });
+  if (!r.ok) {
+    let msg = `${r.status}`;
+    try { msg += ' – ' + (await r.json()).message; } catch (e) {}
+    if (r.status === 401) msg = 'A token érvénytelen vagy lejárt.';
+    if (r.status === 403 || r.status === 404) msg = `Ehhez a tokenhez nincs írási jog a ${GH.owner}/${GH.repo} repóhoz (${r.status}).`;
+    throw new Error(msg);
+  }
+  return r.status === 204 ? null : r.json();
+}
+const b64dec = (b) => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\n/g, '')), (c) => c.charCodeAt(0)));
+async function shortHash(text) {
+  const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 10);
+}
+function photoRecord(p) {
+  return { id: p.id, num: p.num, px: planPx(p), file: p.file, level: p.level, x: +p.x.toFixed(3), z: +p.z.toFixed(3), heading: p.heading, caption: p.caption, group: p.group, dy: dyAt(p.level, p.x, p.z) };
+}
+$('edSave').addEventListener('click', async () => {
+  const token = $('edToken').value.trim();
+  if (!token) { edStatus('Add meg a GitHub tokent (lent leírtam, hogyan kapsz).', 'err'); $('edToken').focus(); return; }
+  if ($('edRemember').checked) lsSet(TOKEN_KEY, token); else lsSet(TOKEN_KEY, null);
+  const btn = $('edSave'); btn.disabled = true;
+  try {
+    edStatus('Kapcsolódás a GitHubhoz…');
+    const user = await (await fetch('https://api.github.com/user', { cache: 'no-store', headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } })).json();
+    if (!user || !user.login) throw new Error('A token érvénytelen vagy lejárt.');
+    const ref = await gh(token, `/git/ref/heads/${GH.branch}`);
+    const head = await gh(token, `/git/commits/${ref.object.sha}`);
+    const getFile = async (path) => b64dec((await gh(token, `/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}?ref=${ref.object.sha}`)).content);
+    edStatus('Fájlok frissítése…');
+    // building.json: only the photo list is replaced, everything else stays as it is in the repo
+    const data = JSON.parse(await getFile('data/building.json'));
+    data.photos = D.photos.map(photoRecord);
+    const dataText = JSON.stringify(data);
+    const v = await shortHash(dataText + Date.now());
+    let html = await getFile('index.html');
+    html = html.replace(/data-version="[^"]*"/, `data-version="${v}"`).replace(/(style\.css|app\.js)\?v=[^"]*"/g, (m, f) => `${f}?v=${v}"`);
+    const files = [
+      { path: 'data/building.json', content: dataText },
+      { path: 'tools/photos.py', content: exportPhotosPy() },
+      { path: 'version.json', content: JSON.stringify({ v }) },
+      { path: 'index.html', content: html },
+    ];
+    const tree = files.map((f) => ({ path: f.path, mode: '100644', type: 'blob', content: f.content }));
+    for (const id of ED.deleted) { const p = ED.all.find((q) => q.id === id); if (p) tree.push({ path: 'photos/' + p.file, mode: '100644', type: 'blob', sha: null }); }
+    const newTree = await gh(token, '/git/trees', { method: 'POST', body: JSON.stringify({ base_tree: head.tree.sha, tree }) });
+    const nEd = Object.keys(ED.edits).length, nDel = ED.deleted.size;
+    const who = { name: user.name || user.login, email: `${user.id}+${user.login}@users.noreply.github.com` };
+    const msg = `Fotók szerkesztése a weboldalon (${[nEd ? nEd + ' módosított' : '', nDel ? nDel + ' törölt' : ''].filter(Boolean).join(', ')})`;
+    const commit = await gh(token, '/git/commits', { method: 'POST', body: JSON.stringify({ message: msg, tree: newTree.sha, parents: [ref.object.sha], author: who, committer: who }) });
+    await gh(token, `/git/refs/heads/${GH.branch}`, { method: 'PATCH', body: JSON.stringify({ sha: commit.sha }) });
+    // the saved state becomes the new baseline
+    for (const p of D.photos) { const px = planPx(p); p.px = px; p.dy = dyAt(p.level, p.x, p.z); ED.orig.set(p.id, { x: p.x, z: p.z, level: p.level, heading: p.heading, caption: p.caption, dy: p.dy, px }); }
+    ED.all = D.photos.slice(); ED.deleted.clear(); lsSet(ED_KEY, null); saveEdits();
+    edStatus('Elmentve! Kb. egy perc múlva látszik az oldalon.', 'ok');
+  } catch (err) {
+    edStatus('Nem sikerült menteni: ' + err.message, 'err');
+  } finally { btn.disabled = !Object.keys(ED.edits).length && !ED.deleted.size; }
 });
 
 // ------------------------------------------------------------ render loop
