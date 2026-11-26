@@ -1,16 +1,15 @@
 # Photo placements: (number, level, x_px, y_px, heading_deg, caption)
 # x/y are plan pixels of that level's plan (level 3 uses the 2nd-floor plan coords).
 # heading: 0 = up on the plan (north), 90 = right (east), 180 = down, 270 = left.
-# Positions are approximate - estimated from what is visible on the photos.
+# A fotószerkesztővel módosítva.
 PHOTOS = [
- # --- H-szárny, 2. emelet (H1xx/H2xx) ---
+ # --- H_szarny ---
  (9712,2,2100,288,0,'H-szárny – H202, H201 ajtók'),
- (9713,2,2385,288,270,'H-szárny folyosó, lépcső felé'),
- (9714,2,2045,288,90,'H-szárny folyosó'),
- (9715,2,2200,288,90,'H-szárny lépcső'),
- (9716,2,2398,280,0,'H102 szaktanterem ajtaja'),
- (9717,2,2408,292,90,'H101 raktár'),
- # --- H-szárny, 1. emelet ---
+ (9713,2,2195,282,90,'H-szárny folyosó, lépcső felé'),
+ (9714,2,2175,289,270,'H-szárny folyosó'),
+ (9715,2,2320,290,270,'H-szárny lépcső'),
+ (9716,2,2390,281,0,'H102 szaktanterem ajtaja'),
+ (9717,2,2379,290,90,'H101 raktár'),
  (9718,1,2110,125,90,'H-szárny folyosó (H007 felől)'),
  (9719,1,2190,125,90,'H-szárny folyosó, lépcső'),
  (9720,1,2240,125,90,'H-szárny folyosó'),
@@ -32,7 +31,7 @@ PHOTOS = [
  (9736,1,2435,875,180,'Lépcső le a Szűk folyosóra'),
  (9737,1,2435,935,0,'Átjáró a H-szárny felé'),
  (9738,1,2435,905,0,'Lépcső fel a H-szárnyba'),
- # --- I-szárny: udvari bejárat (1. em. szint), I102 (2. em.), tetőtér ---
+ # --- I_szarny ---
  (9755,1,1900,900,0,'I-szárny lépcső alja'),
  (9753,1,1900,725,180,'I-szárny lépcső – lefelé'),
  (9754,1,1885,700,0,'Lépcsőforduló (kijáratok)'),
@@ -50,7 +49,7 @@ PHOTOS = [
  (9741,3,1540,320,180,'Tetőtér folyosó visszafelé'),
  (9740,3,1540,295,180,'Tetőtér folyosó visszafelé'),
  (9739,3,1540,285,270,'Tetőtér – I202'),
- # --- Mirelit folyosó (2. em., F217–F220) ---
+ # --- Mirelit_Szuk ---
  (9756,2,1700,1000,270,'Mirelit folyosó → Tanári folyosó'),
  (9757,2,1700,1000,90,'Mirelit folyosó'),
  (9758,2,1800,1000,270,'Mirelit folyosó'),
@@ -61,12 +60,10 @@ PHOTOS = [
  (9763,2,2210,1000,270,'Mirelit folyosó'),
  (9764,2,2300,1000,90,'Mirelit folyosó vége (F217, WC)'),
  (9765,2,2300,1000,270,'Mirelit folyosó visszafelé'),
- # --- Keleti csigalépcső ---
- (9766,2,2400,950,90,'Keleti csigalépcső (2. em.)'),
- (9767,2,2370,960,0,'WC a csigalépcsőnél'),
+ (9766,2,2345,966,90,'Keleti csigalépcső (2. em.)'),
+ (9767,2,2351,930,0,'WC a csigalépcsőnél'),
  (9768,1,2512,945,0,'Keleti csigalépcső'),
  (9769,1,2500,960,0,'Keleti csigalépcső fel'),
- # --- Szűk folyosó (1. em., F120–F125) ---
  (9770,1,2470,955,270,'Szűk folyosó'),
  (9771,1,2490,955,90,'Szűk folyosó – csigalépcső'),
  (9772,1,2445,955,270,'Szűk folyosó'),
@@ -86,9 +83,9 @@ PHOTOS = [
  (9786,1,1420,955,90,'Szűk folyosó'),
  (9787,1,1330,955,270,'Szűk folyosó vége – lépcsőcsarnok'),
  (9788,1,1360,955,90,'Szűk folyosó (F120)'),
- # --- L-szárny, 2. emelet ---
+ # --- Labor ---
  (9789,2,1600,228,270,'L-szárny emeleti folyosó'),
- (9790,2,1612,228,90,'L-szárny folyosó vége'),
+ (9790,2,1566,229,90,'L-szárny folyosó vége'),
  (9791,2,1550,228,270,'L-szárny emeleti folyosó'),
  (9792,2,1500,228,90,'L-szárny emeleti folyosó'),
  (9793,2,1380,228,270,'L107 Analitika előkészítő'),
@@ -99,11 +96,9 @@ PHOTOS = [
  (9798,2,980,228,90,'L-szárny emeleti folyosó'),
  (9799,2,900,228,270,'L-szárny folyosó nyugati vége'),
  (9800,2,846,215,0,'L-szárny lépcső'),
- # --- L-szárny, 1. emelet ---
  (9801,1,1085,300,0,'L-szárny lépcső fel'),
  (9802,1,1066,330,270,'L-szárny bejárat'),
  (9803,1,1078,330,270,'Kijárat a parkoló felé'),
- (9804,1,1110,330,90,'L-szárny folyosó'),
  (9805,1,1150,330,270,'Visszanézet a bejárat felé'),
  (9806,1,1220,330,90,'L-szárny folyosó (laborok)'),
  (9807,1,1850,330,90,'L-szárny folyosó keleti vége'),
@@ -117,34 +112,26 @@ PHOTOS = [
  (9815,1,1203,480,0,'L-szárny nyugati folyosó'),
  (9816,1,1203,520,180,'L-szárny nyugati folyosó (L014)'),
  (9817,1,1203,560,0,'L-szárny nyugati folyosó'),
- (9818,1,1203,840,180,'L-szárny folyosó vége'),
+ (9818,2,950,701,180,'L-szárny folyosó vége'),
  (9819,1,1203,600,180,'L-szárny nyugati folyosó (L015)'),
- (9820,1,1203,880,180,'Lépcsőcsarnok felé'),
- (9821,1,1210,900,90,'Lépcsőcsarnok'),
  (9822,1,1203,800,0,'L-szárny folyosó (L016)'),
- (9823,1,1240,920,0,'Lépcsőcsarnok'),
  (9824,1,1203,700,0,'L-szárny nyugati folyosó'),
  (9825,1,1203,650,0,'L-szárny nyugati folyosó'),
  (9826,1,1203,750,0,'L-szárny nyugati folyosó'),
  (9827,1,1203,500,0,'L-szárny nyugati folyosó'),
- (9841,2,958,720,180,'Lépcső a 2. emeleti L-szárny alján'),
- (9842,2,958,760,0,'Az L-szárny emeleti folyosója'),
- # --- Széles folyosó / könyvtár (2. em. nyugat) + főlépcső ---
+ (9841,1,1203,796,180,'Lépcső a 2. emeleti L-szárny alján'),
+ (9842,1,1203,836,0,'Az L-szárny emeleti folyosója'),
+ # --- Szeles_Konyvtar ---
  (9828,2,700,905,270,'Könyvtár előtér (F206)'),
  (9829,2,680,905,90,'Könyvtár előtér (F206)'),
- (9830,2,725,900,270,'Könyvtár előtér (F206)'),
- (9831,2,800,905,90,'Folyosó az F209–F211 előtt'),
- (9832,2,770,900,270,'Üvegfal a könyvtár előtérnél (F206)'),
- (9833,2,775,905,90,'Folyosó az F209–F211 előtt'),
- (9834,2,930,905,90,'Folyosó az F210–F211 előtt'),
- (9835,2,1060,905,270,'Folyosó az F211 előtt'),
- (9836,2,1000,905,270,'Folyosó az F211 előtt (vitrin)'),
+ (9830,2,731,906,270,'Könyvtár előtér (F206)'),
+ (9831,2,788,904,90,'Folyosó az F209–F211 előtt'),
+ (9832,2,788,904,270,'Üvegfal a könyvtár előtérnél (F206)'),
+ (9835,2,973,904,90,'Folyosó az F211 előtt'),
+ (9836,2,1032,904,270,'Folyosó az F211 előtt (vitrin)'),
  (9837,2,995,865,0,'Főlépcső – feliratos lépcsők'),
  (9838,2,1000,800,180,'Főlépcső lefelé'),
  (9839,2,985,800,0,'Főlépcső – L-szárny felé'),
  (9840,2,1005,835,0,'Főlépcső – feliratos lépcsők'),
- (9843,1,1203,905,270,'Lépcsőcsarnok (1. em.)'),
- (9844,1,1250,955,0,'Lépcsőcsarnok – főlépcső'),
- (9845,1,1203,925,0,'Lépcsőcsarnok'),
- (9846,1,1275,935,0,'Lépcsőcsarnok'),
+ (9844,1,372,920,0,'Lépcsőcsarnok – főlépcső'),
 ]
