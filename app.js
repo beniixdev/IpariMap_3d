@@ -55,7 +55,7 @@ const insetRect = (poly, d) => {
   return [[x0, z0], [x1, z0], [x1, z1], [x0, z1]];
 };
 for (const r of D.rooms) {
-  r.ipoly = insetRect(r.poly, 0.1);
+  r.ipoly = insetRect(r.poly, 0.05); // csak a falakhoz: így nem esnek egybe a folyosó falaival
   r.cx = r.poly.reduce((s, p) => s + p[0], 0) / r.poly.length;
   r.cz = r.poly.reduce((s, p) => s + p[1], 0) / r.poly.length;
   r.area = Math.abs(r.poly.reduce((s, p, i) => { const q = r.poly[(i + 1) % r.poly.length]; return s + p[0] * q[1] - q[0] * p[1]; }, 0) / 2);
@@ -190,7 +190,7 @@ for (const lv of LEVELS) {
   // room floors
   for (const r of D.rooms.filter((x) => x.level === lv)) {
     const rr = Math.max(0, DY(r));
-    const g = new THREE.ExtrudeGeometry(shapeFrom(r.ipoly), { depth: 0.35 + rr, bevelEnabled: false });
+    const g = new THREE.ExtrudeGeometry(shapeFrom(r.poly), { depth: 0.35 + rr, bevelEnabled: false });
     g.rotateX(-Math.PI / 2); g.translate(0, -0.33 - rr, 0);
     const col = new THREE.Color(TYPE[r.type][0]);
     const mat = mk(new THREE.MeshStandardMaterial({ color: col, roughness: 0.85 }));

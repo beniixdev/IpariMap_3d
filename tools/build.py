@@ -89,6 +89,14 @@ def detect_doors(path):
 
 DOORS = {fl: detect_doors(os.path.join(HERE, 'alaprajz', fn)) for fl, fn in PLAN_FILES.items()}
 
+def door_mask(fl):
+    """Az ajtójelek pixelei: a folyosók körvonalába ezeket visszatöltjük, hogy ne legyen bemélyedés az ajtóknál."""
+    m = np.zeros(labs[fl].shape, np.uint8)
+    for hx, hy, tx, ty in DOORS[fl]:
+        cv2.line(m, (int(hx), int(hy)), (int(tx), int(ty)), 1, 6)
+    return cv2.dilate(m, np.ones((9, 9), np.uint8))
+DOOR_MASKS = {fl: door_mask(fl) for fl in PLAN_FILES}
+
 def pt_rect_edge_dist(x, y, r):
     x0, y0, x1, y1 = r
     if x0 <= x <= x1 and y0 <= y <= y1:
@@ -110,6 +118,8 @@ def comp_bbox(level, comps):
 def comp_polys(level, comps):
     lab = labs[LEVEL_PLAN[level]]
     m = np.isin(lab, comps).astype(np.uint8)
+    if level <= 2:  # fill the notches the door strokes cut into the corridor
+        m |= DOOR_MASKS[LEVEL_PLAN[level]] & cv2.dilate(m, np.ones((13, 13), np.uint8))
     m = cv2.dilate(m, np.ones((7, 7), np.uint8))
     m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
     cs, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
