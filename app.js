@@ -85,7 +85,7 @@ host.appendChild(labelRenderer.domElement);
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xe9e6de, 260, 520);
-const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 2000);
+const camera = new THREE.PerspectiveCamera(42, 1, 0.5, 2000); // nagyobb near = pontosabb mélység, kevesebb villódzás
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
@@ -216,7 +216,7 @@ for (const lv of LEVELS) {
   for (const r of D.rooms.filter((x) => x.level === lv)) {
     const rr = Math.max(0, DY(r));
     const g = new THREE.ExtrudeGeometry(shapeFrom(r.poly), { depth: 0.35 + rr, bevelEnabled: false });
-    g.rotateX(-Math.PI / 2); g.translate(0, -0.33 - rr, 0);
+    g.rotateX(-Math.PI / 2); g.translate(0, -0.31 - rr, 0);
     const col = new THREE.Color(TYPE[r.type][0]);
     const mat = mk(new THREE.MeshStandardMaterial({ color: col, roughness: 0.85 }));
     const m = new THREE.Mesh(g, [mat, rr ? plinthMat : edgeMat]);
@@ -268,7 +268,7 @@ for (const lv of LEVELS) {
     const walls = new THREE.Mesh(wg, wallMat);
     walls.castShadow = true; walls.receiveShadow = true;
     const lines = new THREE.LineSegments(lg, lineMat);
-    walls.position.y = lines.position.y = dy * FLOOR_H;
+    walls.position.y = lines.position.y = H(dy); // ugyanaz a magasság, mint a padlóé (DY)
     grp.add(walls, lines);
   }
   // floor tag
