@@ -904,8 +904,7 @@ const TR = D.transform;
 for (const p of D.photos) ED.orig.set(p.id, { x: p.x, z: p.z, level: p.level, heading: p.heading, caption: p.caption, dy: p.dy, px: p.px });
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
 const lsSet = (k, v) => { try { v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} };
-const ssGet = (k) => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
-const ssSet = (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) {} };
+let edUnlocked = false; // csak a memóriában, az oldal újratöltésekor újra jelszót kér
 async function sha256(t) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -983,7 +982,7 @@ function setHeading(h) {
 }
 async function openEditor() {
   if (S.sv) closeStreet();
-  if (ssGet('iparimap-ed') !== '1') { $('lock').hidden = false; $('lockPw').value = ''; $('lockErr').hidden = true; $('lockPw').focus(); return; }
+  if (!edUnlocked) { $('lock').hidden = false; $('lockPw').value = ''; $('lockErr').hidden = true; $('lockPw').focus(); return; }
   S.edit = true; S.showPhotos = true; $('photoToggle').checked = true;
   document.body.classList.add('editing');
   $('editor').hidden = false; $('card').hidden = true;
@@ -997,7 +996,7 @@ function closeEditor() {
 $('lockOk').addEventListener('click', async () => {
   const ok = (await sha256($('lockPw').value)) === EDITOR_HASH;
   if (!ok) { $('lockErr').hidden = false; $('lockPw').select(); return; }
-  ssSet('iparimap-ed', '1'); $('lock').hidden = true; openEditor();
+  edUnlocked = true; $('lockPw').value = ''; $('lock').hidden = true; openEditor();
 });
 $('lockPw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('lockOk').click(); if (e.key === 'Escape') $('lock').hidden = true; });
 $('lockCancel').addEventListener('click', () => { $('lock').hidden = true; });
